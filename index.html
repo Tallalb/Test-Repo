@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Dubai Gold Jewelry Price Calculator</title>
+<title>Gold Jewelry Price Calculator</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
   * { box-sizing: border-box; }
@@ -40,7 +40,7 @@
     font-weight: 600; margin: 4px 0 14px;
   }
   label { display: block; font-size: 13px; color: #a89e8c; margin-bottom: 14px; }
-  input[type=number] {
+  input[type=number], input[type=text] {
     width: 100%; margin-top: 6px; padding: 10px 12px; background: #14110d;
     border: 1px solid #3a332a; border-radius: 6px; color: #ecd9a6;
     font-family: 'IBM Plex Mono', monospace; font-size: 15px;
@@ -75,18 +75,35 @@
   .verdict-num { font-family: 'IBM Plex Mono', monospace; font-size: 15px; color: #e8e2d5; font-weight: 500; }
   .tip { font-size: 13px; color: #a89e8c; line-height: 1.55; }
   footer { margin-top: 32px; font-size: 11px; color: #6f6455; text-align: center; line-height: 1.6; }
+
+  /* Confirm dialog */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #1c1712; border: 1px solid #3a332a; border-radius: 10px;
+    padding: 24px; max-width: 380px; width: 100%;
+  }
+  .modal-title { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: #ecd9a6; margin: 0 0 10px; }
+  .modal-text { font-size: 13px; color: #a89e8c; line-height: 1.5; margin-bottom: 18px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #3a332a; }
+  .modal-btn.cancel { background: transparent; color: #a89e8c; }
+  .modal-btn.confirm { background: #c8a250; color: #14110d; border-color: #c8a250; font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="page">
-  <div class="eyebrow">DUBAI GOLD SOUK · PRICE CHECK</div>
+  <div class="eyebrow">GOLD PRICE CHECK</div>
   <h1>What should this actually cost?</h1>
-  <p class="sub">Price it from the metal up — gold weight, making charge, VAT — then see how much room you have to negotiate against the shop's ask.</p>
+  <p class="sub">Price it from the metal up — gold weight, making charge, tax — then see how much room you have to negotiate against the seller's ask.</p>
 
   <div class="panel" id="livePanel" style="margin-bottom:24px;">
     <div class="panel-title" style="margin-top:0;">Live rate (optional)</div>
     <div class="hint" style="margin-top:-4px;">
-      Pulls today's Dubai 18K/22K/24K rates via the Claude API with web search.
+      Pulls today's 18K/22K/24K gold rates via the Claude API with web search.
       Requires your own Anthropic API key from
       <a href="https://console.anthropic.com" target="_blank" style="color:#c8a250;">console.anthropic.com</a>.
       Each refresh costs a small amount on your API billing. The key is only used in your browser and is never sent anywhere except Anthropic's API.
@@ -112,10 +129,10 @@
       <div class="panel-title">Rate & item</div>
 
       <label id="rateLabel">
-        Rate today (AED / gram)
+        Rate today (per gram)
         <input type="number" id="rateInput" step="0.01" />
       </label>
-      <div class="hint">Enter today's rate from your jeweller, the Dubai Gold &amp; Jewellery Group fix, or a site like goldpricez.com. Rates move through the day — recheck before you commit.</div>
+      <div class="hint">Enter today's rate from your local jeweller or a gold price site in your currency. Rates move through the day — recheck before you commit.</div>
 
       <label>
         Item weight (grams)
@@ -124,17 +141,17 @@
 
       <div class="panel-title">Making charge</div>
       <div class="toggle-row">
-        <button class="toggle-btn active" id="btnFlat">AED / gram</button>
+        <button class="toggle-btn active" id="btnFlat">Amount / gram</button>
         <button class="toggle-btn" id="btnPercent">% of gold value</button>
       </div>
       <input type="number" id="makingInput" step="0.01" value="25" />
-      <div class="hint">Typical Dubai making charges: roughly AED 15–40/g for simple machine-made pieces, or 15–30% of gold value for handmade/intricate designs. Branded jewellers charge more.</div>
+      <div class="hint">Making charges vary by market and design — simple machine-made pieces run lower per gram, while handmade or intricate designs are often priced as a percentage of gold value instead. Check what's typical where you're buying.</div>
 
       <label>
-        VAT %
+        Tax %
         <input type="number" id="vatInput" step="0.1" value="5" />
       </label>
-      <div class="hint">UAE standard VAT on jewellery is 5%.</div>
+      <div class="hint">Enter the sales tax / VAT rate that applies to jewelry purchases in your location.</div>
     </section>
 
     <section class="panel">
@@ -146,9 +163,9 @@
       <div class="divider"></div>
       <div class="line big" id="lineFair"><span class="label-text">Fair price</span><span class="value-text"></span></div>
 
-      <div class="panel-title">Shop's ask price</div>
+      <div class="panel-title">Seller's ask price</div>
       <label>
-        What are they asking? (AED)
+        What are they asking?
         <input type="number" id="askInput" step="0.01" placeholder="e.g. 4200" />
       </label>
 
@@ -172,7 +189,19 @@
     </section>
   </div>
 
-  <footer>Estimates only — actual invoices may include small municipality or certification fees. Always confirm the day's fixed rate on the receipt before paying.</footer>
+  <footer>Estimates only — actual invoices may include small local fees. Always confirm the day's fixed rate on the receipt before paying.</footer>
+</div>
+
+<!-- Confirmation modal for live fetch -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-box">
+    <div class="modal-title">Fetch live rate?</div>
+    <div class="modal-text">This will call the Anthropic API using your key and search the web for today's gold price. It may incur a small cost on your API billing.</div>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" id="cancelFetch">Cancel</button>
+      <button class="modal-btn confirm" id="confirmFetch">Yes, fetch</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -188,7 +217,7 @@
 
   function aed(n) {
     if (!isFinite(n)) return "—";
-    return n.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   // Build karat stamps
@@ -206,7 +235,7 @@
 
   function updateLabels() {
     const k = KARATS.find(k => k.key === karat);
-    document.getElementById("rateLabel").firstChild.textContent = `${k.label} rate today (AED / gram)`;
+    document.getElementById("rateLabel").firstChild.textContent = `${k.label} rate today (per gram)`;
   }
 
   const rateInput = document.getElementById("rateInput");
@@ -230,7 +259,7 @@
   function setLine(id, label, value) {
     const el = document.getElementById(id);
     el.querySelector(".label-text").textContent = label;
-    el.querySelector(".value-text").textContent = isFinite(value) ? `AED ${aed(value)}` : "—";
+    el.querySelector(".value-text").textContent = isFinite(value) ? aed(value) : "—";
   }
 
   function calculate() {
@@ -252,7 +281,7 @@
     setLine("lineGold", `Gold value (${w}g × ${aed(rate)})`, goldValue);
     setLine("lineMaking", `Making charge${makingType === "percent" ? ` (${makingVal}%)` : ""}`, making);
     setLine("lineSubtotal", "Subtotal", subtotal);
-    setLine("lineVat", `VAT (${vat}%)`, vatAmt);
+    setLine("lineVat", `Tax (${vat}%)`, vatAmt);
     setLine("lineFair", "Fair price", fair);
 
     const verdictBox = document.getElementById("verdictBox");
@@ -274,11 +303,11 @@
     badge.textContent = label;
     badge.style.background = color;
 
-    document.getElementById("numFair").textContent = `AED ${aed(fair)}`;
-    document.getElementById("numAsk").textContent = `AED ${aed(ask)}`;
+    document.getElementById("numFair").textContent = aed(fair);
+    document.getElementById("numAsk").textContent = aed(ask);
     document.getElementById("diffLabel").textContent = diff >= 0 ? "Markup" : "Below fair";
     const numDiff = document.getElementById("numDiff");
-    numDiff.textContent = `${diff >= 0 ? "+" : ""}AED ${aed(diff)} (${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%)`;
+    numDiff.textContent = `${diff >= 0 ? "+" : ""}${aed(diff)} (${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%)`;
     numDiff.style.color = diff > 0 ? "#d08a3e" : "#8ea87a";
 
     const max = Math.max(fair, ceiling, ask) * 1.15 || 1;
@@ -291,16 +320,19 @@
     let tip;
     if (diffPct <= 0) tip = "This is at or below the calculated fair price. No real bargaining room left — a fine price to accept.";
     else if (diffPct <= 8) tip = "This sits inside normal retail margin. Light negotiation might shave a little off, but don't expect much movement.";
-    else if (diffPct <= 20) tip = `Open by offering close to the fair price (around AED ${aed(fair)}), and expect to settle somewhere near AED ${aed(ceiling)}. Mention you've priced the gold weight and factor in the making and VAT — most jewellers will respect the homework.`;
-    else tip = `The gap is large enough to push hard. Anchor low, near AED ${aed(fair)}, and be willing to walk — in the Gold Souk there's almost always a shop next door with the same design.`;
+    else if (diffPct <= 20) tip = `Open by offering close to the fair price (around ${aed(fair)}), and expect to settle somewhere near ${aed(ceiling)}. Mention you've priced the gold weight and factored in the making charge and tax yourself — it signals you won't overpay.`;
+    else tip = `The gap is large enough to push hard. Anchor low, near ${aed(fair)}, and be willing to walk — there's almost always another seller with a similar piece.`;
     document.getElementById("tipText").textContent = tip;
   }
 
-  // --- Live rate via Anthropic API ---
+  // --- Live rate via Anthropic API, with confirmation step ---
   const apiKeyInput = document.getElementById("apiKeyInput");
   const rememberKey = document.getElementById("rememberKey");
   const refreshBtn = document.getElementById("refreshBtn");
   const liveStatus = document.getElementById("liveStatus");
+  const confirmModal = document.getElementById("confirmModal");
+  const confirmFetchBtn = document.getElementById("confirmFetch");
+  const cancelFetchBtn = document.getElementById("cancelFetch");
 
   const savedKey = localStorage.getItem("gold_calc_api_key");
   if (savedKey) {
@@ -316,6 +348,24 @@
     if (rememberKey.checked) localStorage.setItem("gold_calc_api_key", apiKeyInput.value);
   });
 
+  refreshBtn.addEventListener("click", () => {
+    if (!apiKeyInput.value.trim()) {
+      liveStatus.textContent = "Enter your Anthropic API key first.";
+      liveStatus.style.color = "#c05a4a";
+      return;
+    }
+    confirmModal.classList.add("open");
+  });
+
+  cancelFetchBtn.addEventListener("click", () => {
+    confirmModal.classList.remove("open");
+  });
+
+  confirmFetchBtn.addEventListener("click", () => {
+    confirmModal.classList.remove("open");
+    fetchLiveRates();
+  });
+
   async function fetchLiveRates() {
     const key = apiKeyInput.value.trim();
     if (!key) {
@@ -324,7 +374,7 @@
       return;
     }
     refreshBtn.disabled = true;
-    liveStatus.textContent = "Fetching today's Dubai gold rate…";
+    liveStatus.textContent = "Fetching today's gold rate…";
     liveStatus.style.color = "#c8a250";
 
     try {
@@ -343,9 +393,9 @@
             {
               role: "user",
               content:
-                "Search the web for today's Dubai gold price per gram in AED for 18K, 22K, and 24K gold (retail rate, e.g. from Dubai Gold & Jewellery Group, Goodreturns, or goldpricez.com). " +
+                "Search the web for today's gold price per gram for 18K, 22K, and 24K gold (retail rate). " +
                 "Respond with ONLY a raw JSON object, no markdown fences, no commentary, in exactly this shape: " +
-                '{"date":"<date>","k18":<number>,"k22":<number>,"k24":<number>,"source":"<short source name>"}',
+                '{"date":"<date>","k18":<number>,"k22":<number>,"k24":<number>,"currency":"<currency code>","source":"<short source name>"}',
             },
           ],
           tools: [{ type: "web_search_20250305", name: "web_search" }],
@@ -374,7 +424,8 @@
       rates["24"] = parseFloat(parsed.k24);
       rateInput.value = rates[karat];
 
-      liveStatus.textContent = `Updated for ${parsed.date || "today"} · via ${parsed.source || "web search"}`;
+      const currencyNote = parsed.currency ? ` (${parsed.currency})` : "";
+      liveStatus.textContent = `Updated for ${parsed.date || "today"}${currencyNote} · via ${parsed.source || "web search"}`;
       liveStatus.style.color = "#8ea87a";
       calculate();
     } catch (err) {
@@ -388,8 +439,6 @@
       refreshBtn.disabled = false;
     }
   }
-
-  refreshBtn.addEventListener("click", fetchLiveRates);
 
   renderStamps();
   updateLabels();
