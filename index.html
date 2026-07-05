@@ -97,6 +97,12 @@
   <div class="grid">
     <section class="panel">
       <div class="panel-title">Rate & item</div>
+      <label>
+        Currency
+        <input type="text" id="currencyInput" value="AED" maxlength="6" style="text-transform:uppercase;" />
+      </label>
+      <div class="hint">Used only as a label next to the numbers below — set it to whatever currency you're pricing in.</div>
+
       <label id="rateLabel">
         Rate today (per gram)
         <input type="number" id="rateInput" step="0.01" />
@@ -185,7 +191,9 @@
 
   function fmt(n) {
     if (!isFinite(n)) return "—";
-    return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const cur = (currencyInput && currencyInput.value.trim()) || "";
+    const num = n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return cur ? `${cur} ${num}` : num;
   }
 
   function todayStr() {
@@ -211,6 +219,7 @@
   }
 
   const rateInput = document.getElementById("rateInput");
+  const currencyInput = document.getElementById("currencyInput");
   const weightInput = document.getElementById("weightInput");
   const makingInput = document.getElementById("makingInput");
   const vatInput = document.getElementById("vatInput");
@@ -223,7 +232,7 @@
   btnFlat.onclick = () => { makingType = "flat"; btnFlat.classList.add("active"); btnPercent.classList.remove("active"); calculate(); };
   btnPercent.onclick = () => { makingType = "percent"; btnPercent.classList.add("active"); btnFlat.classList.remove("active"); calculate(); };
 
-  [rateInput, weightInput, makingInput, vatInput, askInput].forEach(el => el.addEventListener("input", () => {
+  [rateInput, currencyInput, weightInput, makingInput, vatInput, askInput].forEach(el => el.addEventListener("input", () => {
     rates[karat] = parseFloat(rateInput.value) || 0;
     calculate();
   }));
@@ -335,6 +344,7 @@
     rates["22"] = parseFloat(parsed.k22);
     rates["24"] = parseFloat(parsed.k24);
     rateInput.value = rates[karat];
+    if (parsed.currency) currencyInput.value = parsed.currency;
     const currencyNote = parsed.currency ? ` (${parsed.currency})` : "";
     const cacheNote = fromCache ? " · cached, no charge" : "";
     liveStatus.textContent = `Updated for ${parsed.date || "today"}${currencyNote} · via ${parsed.source || "web search"}${cacheNote}`;
@@ -371,10 +381,14 @@
     fetchLiveRates();
   });
 
-  const RATE_PROMPT =
-    "Search the web for today's gold price per gram for 18K, 22K, and 24K gold (retail rate). " +
-    "Respond with ONLY a raw JSON object, no markdown fences, no commentary, in exactly this shape: " +
-    '{"date":"<date>","k18":<number>,"k22":<number>,"k24":<number>,"currency":"<currency code>","source":"<short source name>"}';
+  function buildRatePrompt() {
+    const cur = (currencyInput.value.trim() || "AED").toUpperCase();
+    return (
+      `Search the web for today's gold price per gram in ${cur} for 18K, 22K, and 24K gold (retail rate). ` +
+      "Respond with ONLY a raw JSON object, no markdown fences, no commentary, in exactly this shape: " +
+      `{"date":"<date>","k18":<number>,"k22":<number>,"k24":<number>,"currency":"${cur}","source":"<short source name>"}`
+    );
+  }
 
   async function fetchLiveRates() {
     const key = apiKeyInput.value.trim();
@@ -399,7 +413,7 @@
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 400,
-          messages: [{ role: "user", content: RATE_PROMPT }],
+          messages: [{ role: "user", content: buildRatePrompt() }],
           tools: [{ type: "web_search_20250305", name: "web_search" }],
         }),
       });
