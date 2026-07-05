@@ -84,6 +84,11 @@
         <option value="NOK">NOK — Norwegian Krone</option>
       </select>
     </label>
+    <div class="hint" style="margin-top:8px; margin-bottom:0;">
+      Switching currency auto-converts any entered numbers using a live exchange rate
+      (via a free, keyless FX API) — useful as an estimate, but not the same as fetching
+      the actual gold price quoted in that currency. Use Fetch for an authoritative rate.
+    </div>
   </div>
 
   <div class="panel" id="livePanel" style="margin-bottom:24px;">
@@ -251,21 +256,68 @@
     calculate();
   }));
 
-  currencySelect.addEventListener("change", () => {
-    // Switching currency: clear manual entries since old numbers don't apply,
-    // then check if there's already a cached fetch for this currency today.
-    KARATS.forEach(k => { rates[k.key] = ""; });
-    rateInput.value = "";
-    askInput.value = "";
-    liveStatus.textContent = "Not fetched yet.";
-    liveStatus.style.color = "#a89e8c";
+  let prevCurrency = currencySelect.value;
+
+  let fxCache = null; // { rates: {...}, fetchedAt: <ms> }
+  async function getFxRates() {
+    const now = Date.now();
+    if (fxCache && now - fxCache.fetchedAt < 6 * 60 * 60 * 1000) return fxCache.rates;
+    const resp = await fetch("https://open.er-api.com/v6/latest/USD");
+    if (!resp.ok) throw new Error(`Exchange rate API error ${resp.status}`);
+    const data = await resp.json();
+    if (data.result !== "success" || !data.rates) throw new Error("Exchange rate API returned no data");
+    fxCache = { rates: data.rates, fetchedAt: now };
+    return data.rates;
+  }
+
+  async function getFxFactor(from, to) {
+    if (from === to) return 1;
+    const rates = await getFxRates();
+    if (!rates[from] || !rates[to]) throw new Error(`No exchange rate available for ${from} or ${to}`);
+    return rates[to] / rates[from];
+  }
+
+  currencySelect.addEventListener("change", async () => {
+    const oldCur = prevCurrency;
+    const newCur = currencySelect.value;
+    prevCurrency = newCur;
+
+    // Prefer an authoritative same-day fetch for the new currency, if one exists.
     const cached = readCache();
-    if (cached && cached.date === todayStr() && cached.currency === currencySelect.value) {
+    if (cached && cached.date === todayStr() && cached.currency === newCur) {
       applyRates(cached, true);
-    } else {
+      return;
+    }
+
+    const hasRate = rateInput.value !== "" && !isNaN(parseFloat(rateInput.value));
+    const hasAsk = askInput.value !== "" && !isNaN(parseFloat(askInput.value));
+
+    if (!hasRate && !hasAsk) {
       calculate();
       syncFetchButtonState();
+      return;
     }
+
+    liveStatus.textContent = `Converting ${oldCur} → ${newCur}…`;
+    liveStatus.style.color = "#c8a250";
+
+    try {
+      const factor = await getFxFactor(oldCur, newCur);
+      KARATS.forEach(k => {
+        const v = parseFloat(rates[k.key]);
+        if (!isNaN(v)) rates[k.key] = +(v * factor).toFixed(2);
+      });
+      if (hasRate) rateInput.value = rates[karat];
+      if (hasAsk) askInput.value = (parseFloat(askInput.value) * factor).toFixed(2);
+      liveStatus.textContent = `Converted ${oldCur} → ${newCur} at an approximate exchange rate (${factor.toFixed(4)}) — not a live gold quote. Fetch for an authoritative ${newCur} rate.`;
+      liveStatus.style.color = "#a89e8c";
+    } catch (err) {
+      console.error("Currency conversion failed:", err);
+      liveStatus.textContent = `Couldn't auto-convert (${err.message}). Enter the rate manually for ${newCur}, or fetch it.`;
+      liveStatus.style.color = "#c05a4a";
+    }
+    calculate();
+    syncFetchButtonState();
   });
 
   function setLine(id, label, value) {
