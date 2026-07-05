@@ -90,6 +90,9 @@
       <button class="toggle-btn" id="refreshBtn" style="flex:none; padding:8px 16px;">↻ Fetch today's rate</button>
       <span id="liveStatus" style="font-size:12.5px; color:#a89e8c;">Not fetched yet.</span>
     </div>
+    <div style="margin-top:8px;">
+      <a href="#" id="forceFetchLink" style="display:none; font-size:11px; color:#6f6455; text-decoration:underline;">Fetch again anyway (extra charge)</a>
+    </div>
   </div>
 
   <div class="stamp-row" id="stampRow"></div>
@@ -311,6 +314,7 @@
   const confirmFetchBtn = document.getElementById("confirmFetch");
   const cancelFetchBtn = document.getElementById("cancelFetch");
   const confirmText = document.getElementById("confirmText");
+  const forceFetchLink = document.getElementById("forceFetchLink");
 
   const KEY_STORAGE = "gold_calc_api_key";
   const savedKey = localStorage.getItem(KEY_STORAGE);
@@ -339,6 +343,24 @@
     try { localStorage.setItem(CACHE_KEY, JSON.stringify(obj)); } catch (_) {}
   }
 
+  function syncFetchButtonState() {
+    const cached = readCache();
+    const isToday = cached && cached.date === todayStr();
+    if (isToday) {
+      refreshBtn.textContent = "Already fetched today";
+      refreshBtn.disabled = true;
+      refreshBtn.style.opacity = "0.5";
+      refreshBtn.style.cursor = "default";
+      forceFetchLink.style.display = "inline";
+    } else {
+      refreshBtn.textContent = "↻ Fetch today's rate";
+      refreshBtn.disabled = false;
+      refreshBtn.style.opacity = "1";
+      refreshBtn.style.cursor = "pointer";
+      forceFetchLink.style.display = "none";
+    }
+  }
+
   function applyRates(parsed, fromCache) {
     rates["18"] = parseFloat(parsed.k18);
     rates["22"] = parseFloat(parsed.k22);
@@ -350,6 +372,7 @@
     liveStatus.textContent = `Updated for ${parsed.date || "today"}${currencyNote} · via ${parsed.source || "web search"}${cacheNote}`;
     liveStatus.style.color = "#8ea87a";
     calculate();
+    syncFetchButtonState();
   }
 
   // On load: use today's cache if present, so opening the page never costs anything.
@@ -357,6 +380,8 @@
     const cached = readCache();
     if (cached && cached.date === todayStr()) {
       applyRates(cached, true);
+    } else {
+      syncFetchButtonState();
     }
   })();
 
@@ -379,6 +404,17 @@
   confirmFetchBtn.addEventListener("click", () => {
     confirmModal.classList.remove("open");
     fetchLiveRates();
+  });
+
+  forceFetchLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (!apiKeyInput.value.trim()) {
+      liveStatus.textContent = "Enter your Anthropic API key first.";
+      liveStatus.style.color = "#c05a4a";
+      return;
+    }
+    confirmText.textContent = "You already have a cached rate fetched today. Fetching again will call the API a second time and cost you again. Continue?";
+    confirmModal.classList.add("open");
   });
 
   function buildRatePrompt() {
