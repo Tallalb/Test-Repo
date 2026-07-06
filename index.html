@@ -574,7 +574,9 @@
     numDiff.textContent = `${diff >= 0 ? "+" : ""}${fmt(diff)} (${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%)`;
     numDiff.style.color = diff > 0 ? "#d08a3e" : "#8ea87a";
 
-    const max = Math.max(fair, ceiling, ask) * 1.15 || 1;
+    // Scale ends just a little past whichever is furthest right (ask or the acceptable ceiling),
+    // so the fair/ask markers spread across the bar instead of bunching on the left.
+    const max = Math.max(ceiling, ask) * 1.05 || 1;
     const pct = v => Math.min(100, (v / max) * 100);
     document.getElementById("gaugeZone").style.width = pct(ceiling) + "%";
     document.getElementById("gaugeFair").style.left = pct(fair) + "%";
