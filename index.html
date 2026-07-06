@@ -97,20 +97,10 @@
   <div class="panel" id="currencyPanel" style="margin-bottom:20px;">
     <label style="margin-bottom:0;">
       <span data-i18n="currencyLabel">Currency</span>
-      <select id="currencySelect">
-        <option value="AED">AED — UAE Dirham</option>
-        <option value="USD">USD — US Dollar</option>
-        <option value="SAR">SAR — Saudi Riyal</option>
-        <option value="EUR">EUR — Euro</option>
-        <option value="GBP">GBP — British Pound</option>
-        <option value="INR">INR — Indian Rupee</option>
-        <option value="PKR">PKR — Pakistani Rupee</option>
-        <option value="EGP">EGP — Egyptian Pound</option>
-        <option value="NOK">NOK — Norwegian Krone</option>
-      </select>
+      <select id="currencySelect"></select>
     </label>
     <div class="hint" data-i18n="currencyHint" style="margin-top:8px; margin-bottom:0;">
-      Switching currency won't change your typed-in numbers reliably on its own — after switching, tap Fetch to pull that currency's actual gold rate. AED, USD, EUR, GBP and SAR come straight from GoldAPI; other currencies are derived from the USD rate using a live exchange rate.
+      Switching currency always discards typed values and the ask price. The rate is refilled from today's fetched data: the new currency's own cached rate if you fetched it, otherwise an FX-derived estimate from your last fetch. If nothing was fetched today, the field stays empty until you tap Fetch. AED, USD, EUR and SAR come straight from GoldAPI; NOK is derived from the USD rate.
     </div>
   </div>
 
@@ -121,7 +111,7 @@
     </div>
     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
       <button class="toggle-btn" id="refreshBtn" style="flex:none; padding:8px 16px;">↻ Fetch today's rate</button>
-      <span id="liveStatus" data-i18n="notFetched" style="font-size:12.5px; color:#a89e8c;">Not fetched yet.</span>
+      <span id="liveStatus" style="font-size:12.5px; color:#a89e8c;">Not fetched yet.</span>
     </div>
     <div style="margin-top:8px;">
       <a href="#" id="forceFetchLink" data-i18n="fetchAgain" style="display:none; font-size:11px; color:#6f6455; text-decoration:underline;">Fetch again anyway</a>
@@ -135,7 +125,7 @@
       <div class="panel-title" data-i18n="rateItemTitle">Rate & item</div>
       <label id="rateLabel">
         <span id="rateLabelText">Rate today (per gram)</span>
-        <input type="number" id="rateInput" step="0.01" />
+        <input type="number" id="rateInput" step="0.01" min="0" />
       </label>
       <div class="hint" data-i18n="rateHint">Enter today's rate from your local jeweller or a gold price site in your currency. Rates move through the day — recheck before you commit.</div>
 
@@ -147,7 +137,7 @@
 
       <label>
         <span data-i18n="weightLabel">Item weight (grams)</span>
-        <input type="number" id="weightInput" step="0.01" value="10" />
+        <input type="number" id="weightInput" step="0.01" min="0" value="10" />
       </label>
 
       <div class="panel-title" data-i18n="makingTitle">Making charge</div>
@@ -155,12 +145,12 @@
         <button class="toggle-btn active" id="btnFlat" data-i18n="makingFlat">Amount / gram</button>
         <button class="toggle-btn" id="btnPercent" data-i18n="makingPercent">% of gold value</button>
       </div>
-      <input type="number" id="makingInput" step="0.01" value="25" style="margin-bottom:4px;" />
+      <input type="number" id="makingInput" step="0.01" min="0" value="25" style="margin-bottom:4px;" />
       <div class="hint" data-i18n="makingHint">Making charges vary by market and design — simple machine-made pieces run lower per gram, while handmade or intricate designs are often priced as a percentage of gold value instead. Check what's typical where you're buying.</div>
 
       <label>
         <span data-i18n="taxLabel">Tax %</span>
-        <input type="number" id="vatInput" step="0.1" value="5" />
+        <input type="number" id="vatInput" step="0.1" min="0" value="5" />
       </label>
       <div class="hint" data-i18n="taxHint">Enter the sales tax / VAT rate that applies to jewelry purchases in your location.</div>
     </section>
@@ -177,7 +167,7 @@
       <div class="panel-title" data-i18n="askTitle">Seller's ask price</div>
       <label>
         <span data-i18n="askLabel">What are they asking?</span>
-        <input type="number" id="askInput" step="0.01" placeholder="e.g. 4200" />
+        <input type="number" id="askInput" step="0.01" min="0" placeholder="e.g. 4200" />
       </label>
 
       <div class="verdict-box" id="verdictBox" style="display:none;">
@@ -222,7 +212,7 @@
       title: "What should this actually cost?",
       sub: "Price it from the metal up — gold weight, making charge, tax — then see how much room you have to negotiate against the seller's ask.",
       currencyLabel: "Currency",
-      currencyHint: "Switching currency won't change your typed-in numbers reliably on its own — after switching, tap Fetch to pull that currency's actual gold rate. AED, USD, EUR, GBP and SAR come straight from GoldAPI; other currencies are derived from the USD rate using a live exchange rate.",
+      currencyHint: "Switching currency always discards typed values and the ask price. The rate is refilled from today's fetched data: the new currency's own cached rate if you fetched it, otherwise an FX-derived estimate from your last fetch. If nothing was fetched today, the field stays empty until you tap Fetch. AED, USD, EUR and SAR come straight from GoldAPI; NOK is derived from the USD rate.",
       liveTitle: "Live rate (optional)",
       liveHint: "Pulls today's 18K/22K/24K gold rates directly from GoldAPI.io. For currencies it doesn't support natively, it fetches the USD rate and converts using the same live FX rate as the currency switcher above. A successful fetch is cached until the next calendar day, so reopening the app won't call the API again — only clicking Fetch again does.",
       notFetched: "Not fetched yet.",
@@ -268,14 +258,13 @@
       tipNormal: "This sits inside normal retail margin. Light negotiation might shave a little off, but don't expect much movement.",
       tipRoom: "Open by offering close to the fair price (around {fair}), and expect to settle somewhere near {ceiling}. Mention you've priced the gold weight and factored in the making charge and tax yourself — it signals you won't overpay.",
       tipOver: "The gap is large enough to push hard. Anchor low, near {fair}, and be willing to walk — there's almost always another seller with a similar piece.",
+      derived: "Estimated from today's fetched {src} rate via exchange rate (~{factor}). Tap Fetch for the official {cur} rate.",
       confirmCached: "You already have today's rate cached for this currency. Fetch again anyway?",
       confirmNew: "This will call GoldAPI.io to pull today's gold price for the selected currency.",
       fetching: "Fetching today's gold rate…",
       updated: "Updated for {date}{cur} · via {source}{cache}",
       cached: " · cached",
       currencySet: "Currency set to {cur}. Tap Fetch to pull today's {cur} gold rate.",
-      switching: "Switching to {cur}…",
-      estimated: "Estimated in {cur} using an approximate exchange rate (~{factor}). Tap Fetch for the authoritative {cur} gold rate.",
       fetchFailNet: "Network/CORS error reaching GoldAPI. It may not allow direct browser calls.",
       fetchFail: "Fetch failed: {msg}",
       langName: "العربية",
@@ -285,7 +274,7 @@
       title: "كم يجب أن يكلّف هذا فعلاً؟",
       sub: "احسب السعر من المعدن صعوداً — وزن الذهب، أجرة الصياغة، الضريبة — ثم اطّلع على هامش المساومة المتاح لك مقابل السعر المطلوب من البائع.",
       currencyLabel: "العملة",
-      currencyHint: "تغيير العملة لا يحوّل الأرقام المُدخلة تلقائياً بشكل موثوق — بعد التغيير، اضغط «جلب» للحصول على سعر الذهب الفعلي بتلك العملة. الدرهم والدولار واليورو والجنيه الإسترليني والريال السعودي تأتي مباشرة من GoldAPI؛ أما بقية العملات فتُشتق من سعر الدولار باستخدام سعر صرف حي.",
+      currencyHint: "تغيير العملة يتجاهل دائماً القيم المُدخلة يدوياً والسعر المطلوب. يُعاد ملء حقل السعر من بيانات اليوم المجلوبة: سعر العملة الجديدة المحفوظ إن كنت قد جلبته، وإلا تقدير مشتق عبر سعر الصرف من آخر جلب. إن لم يُجلب شيء اليوم يبقى الحقل فارغاً حتى تضغط «جلب». الدرهم والدولار واليورو والريال السعودي تأتي مباشرة من GoldAPI؛ أما الكرونة النرويجية فتُشتق من سعر الدولار.",
       liveTitle: "السعر اليومي \"مباشر\" (اختياري)",
       liveHint: "يجلب أسعار الذهب اليوم لعيار ١٨ و٢٢ و٢٤ مباشرة من GoldAPI.io. للعملات غير المدعومة أصلاً، يجلب سعر الدولار ويحوّله باستخدام سعر الصرف الحي نفسه. يُحفظ الجلب الناجح حتى اليوم التالي، لذا لن يعيد التطبيق الاتصال بالخدمة عند إعادة فتحه — فقط الضغط على «جلب» يفعل ذلك.",
       notFetched: "لم يتم الجلب بعد.",
@@ -330,14 +319,13 @@
       tipNormal: "هذا ضمن هامش التجزئة المعتاد. قد تخفّض مساومة بسيطة القليل، لكن لا تتوقّع تحرّكاً كبيراً.",
       tipRoom: "ابدأ بعرض قريب من السعر العادل (حوالي {fair})، وتوقّع الاستقرار قرب {ceiling}. اذكر أنك حسبت وزن الذهب وأجرة الصياغة والضريبة بنفسك — هذا يُشعرهم بأنك لن تدفع أكثر من اللازم.",
       tipOver: "الفارق كبير بما يكفي للمفاوضة بحزم. ابدأ منخفضاً، قرب {fair}، وكن مستعداً للانسحاب — دائماً هناك بائع آخر بقطعة مشابهة.",
+      derived: "تقدير مشتق من سعر {src} المجلوب اليوم عبر سعر الصرف (~{factor}). اضغط «جلب» للحصول على السعر الرسمي بعملة {cur}.",
       confirmCached: "لديك سعر اليوم محفوظ لهذه العملة. هل تريد الجلب مرة أخرى على أي حال؟",
       confirmNew: "سيتصل هذا بخدمة GoldAPI.io لجلب سعر الذهب لليوم بالعملة المختارة.",
       fetching: "جارٍ جلب سعر الذهب لليوم…",
       updated: "مُحدّث لتاريخ {date}{cur} · عبر {source}{cache}",
       cached: " · محفوظ",
       currencySet: "تم ضبط العملة على {cur}. اضغط «جلب» للحصول على سعر الذهب لليوم بعملة {cur}.",
-      switching: "جارٍ التبديل إلى {cur}…",
-      estimated: "تقدير بعملة {cur} باستخدام سعر صرف تقريبي (~{factor}). اضغط «جلب» للحصول على سعر الذهب الرسمي بعملة {cur}.",
       fetchFailNet: "خطأ شبكة/CORS في الوصول إلى GoldAPI. قد لا تسمح بالاتصال المباشر من المتصفح.",
       fetchFail: "فشل الجلب: {msg}",
       langName: "English",
@@ -345,11 +333,26 @@
   };
 
   let lang = "en";
+  // restore saved language early so currency options and labels build in the right language
+  try {
+    const savedLang = localStorage.getItem("gold_calc_lang");
+    if (savedLang === "ar" || savedLang === "en") lang = savedLang;
+  } catch (_) {}
+
   function t(key, vars) {
     let s = (I18N[lang] && I18N[lang][key]) || (I18N.en[key] || key);
-    if (vars) for (const k in vars) s = s.replace(new RegExp(`\\{${k}\\}`, "g"), vars[k]);
+    if (vars) for (const k in vars) s = s.replace(new RegExp(`\\{${k}\\}`, "g"), () => vars[k]);
     return s;
   }
+
+  // Currency list: English code kept in both languages; description localized.
+  const CURRENCIES = [
+    { code: "AED", en: "UAE Dirham",      ar: "درهم إماراتي" },
+    { code: "USD", en: "US Dollar",       ar: "دولار أمريكي" },
+    { code: "SAR", en: "Saudi Riyal",     ar: "ريال سعودي" },
+    { code: "EUR", en: "Euro",            ar: "يورو" },
+    { code: "NOK", en: "Norwegian Krone", ar: "كرونة نرويجية" },
+  ];
 
   const KARATS = [
     { key: "18", label: "18K", fineness: "750", defaultRate: 381.75 },
@@ -367,7 +370,7 @@
 
   function fmt(n) {
     if (!isFinite(n)) return "—";
-    const cur = (currencySelect && currencySelect.value) || "";
+    const cur = currencySelect.value || "";
     const num = n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     return cur ? `${cur} ${num}` : num;
   }
@@ -404,6 +407,24 @@
   const btnPercent = document.getElementById("btnPercent");
   const markupToggle = document.getElementById("markupToggle");
 
+  // Build currency <option>s in the active language, preserving selection.
+  function buildCurrencyOptions(selected) {
+    currencySelect.innerHTML = "";
+    CURRENCIES.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.code;
+      opt.textContent = `${c.code} — ${lang === "ar" ? c.ar : c.en}`;
+      currencySelect.appendChild(opt);
+    });
+    currencySelect.value = CURRENCIES.some(c => c.code === selected) ? selected : "AED";
+  }
+  buildCurrencyOptions("AED");
+  // restore saved currency (falls back to AED if the saved code was removed)
+  try {
+    const savedCur = localStorage.getItem("gold_calc_currency");
+    if (savedCur) buildCurrencyOptions(savedCur);
+  } catch (_) {}
+
   rateInput.value = rates[karat];
 
   btnFlat.onclick = () => { makingType = "flat"; btnFlat.classList.add("active"); btnPercent.classList.remove("active"); calculate(); };
@@ -413,6 +434,7 @@
     markupOn = markupToggle.checked;
     try { localStorage.setItem("gold_calc_markup", markupOn ? "1" : "0"); } catch (_) {}
     reapplyMarkup();
+    renderStatus(); // keep the "+markup applied" note in sync
   });
 
   // When the rate field is manually edited, treat the typed value as authoritative:
@@ -432,8 +454,6 @@
   [weightInput, makingInput, vatInput, askInput].forEach(el => el.addEventListener("input", () => {
     calculate();
   }));
-
-  let prevCurrency = currencySelect.value;
 
   let fxCache = null;
   async function getFxRates() {
@@ -457,69 +477,63 @@
     fxCache = { rates: r, fetchedAt: now };
     return r;
   }
+  // Hard USD pegs — last-resort fallback if both FX APIs fail. EUR/NOK float, so no entry.
+  const USD_PEGS = { USD: 1, AED: 3.6725, SAR: 3.75 };
   async function getFxFactor(from, to) {
     if (from === to) return 1;
-    const r = await getFxRates();
-    if (!r[from] || !r[to]) throw new Error(`No exchange rate available for ${from} or ${to}`);
-    return r[to] / r[from];
+    try {
+      const r = await getFxRates();
+      if (!r[from] || !r[to]) throw new Error(`No exchange rate available for ${from} or ${to}`);
+      return r[to] / r[from];
+    } catch (err) {
+      if (USD_PEGS[from] && USD_PEGS[to]) return USD_PEGS[to] / USD_PEGS[from];
+      throw err;
+    }
   }
 
+  let currencySwitchId = 0; // guards against out-of-order async FX results on rapid switching
   currencySelect.addEventListener("change", async () => {
-    const oldCur = prevCurrency;
+    const myId = ++currencySwitchId;
     const newCur = currencySelect.value;
-    prevCurrency = newCur;
+    try { localStorage.setItem("gold_calc_currency", newCur); } catch (_) {}
 
-    const cached = readCache();
-    if (cached && cached.date === todayStr() && cached.currency === newCur) {
+    // The ask is a seller's quote in the previous currency — never carry it across.
+    askInput.value = "";
+
+    // 1) Today's fetched rate for this exact currency: authoritative, overrides anything typed.
+    const cached = readCacheFor(newCur);
+    if (cached) {
       applyRates(cached, true);
       return;
     }
 
-    const hasRate = rateInput.value !== "" && !isNaN(parseFloat(rateInput.value));
-    const hasAsk = askInput.value !== "" && !isNaN(parseFloat(askInput.value));
-
-    if (!hasRate && !hasAsk) {
-      KARATS.forEach(k => { rates[k.key] = ""; baseRates[k.key] = ""; });
-      rateInput.value = "";
-      liveStatus.textContent = t("currencySet", { cur: newCur });
-      liveStatus.style.color = "#a89e8c";
-      calculate();
-      syncFetchButtonState();
-      return;
+    // 2) No direct cache, but something was fetched today in another currency:
+    //    derive an FX estimate from it (prefer USD as the base). Not cached — Fetch stays available.
+    const map = readCacheMap();
+    const todayCurs = Object.keys(map).filter(c => map[c].date === todayStr());
+    const srcCur = todayCurs.includes("USD") ? "USD" : todayCurs[0];
+    if (srcCur) {
+      try {
+        const factor = await getFxFactor(srcCur, newCur);
+        if (myId !== currencySwitchId) return; // a newer switch superseded this one
+        const src = map[srcCur];
+        baseRates["18"] = +(parseFloat(src.k18) * factor).toFixed(2);
+        baseRates["22"] = +(parseFloat(src.k22) * factor).toFixed(2);
+        baseRates["24"] = +(parseFloat(src.k24) * factor).toFixed(2);
+        deriveRatesFromBase();
+        setStatus("derived", { src: srcCur, cur: newCur, factor: factor.toFixed(3) }, "#a89e8c", { markupNote: true });
+        syncFetchButtonState();
+        return;
+      } catch (err) {
+        if (myId !== currencySwitchId) return;
+        console.error("FX derivation unavailable (non-fatal):", err);
+      }
     }
 
-    const savedBase = { ...baseRates };
-    const savedAskVal = askInput.value;
-
-    liveStatus.textContent = t("switching", { cur: newCur });
-    liveStatus.style.color = "#c8a250";
-
-    let converted = false;
-    try {
-      const factor = await getFxFactor(oldCur, newCur);
-      // Convert the pre-markup base rates, then re-derive displayed rates with markup.
-      KARATS.forEach(k => {
-        const v = parseFloat(savedBase[k.key]);
-        baseRates[k.key] = isNaN(v) ? "" : +(v * factor).toFixed(2);
-      });
-      deriveRatesFromBase();
-      if (hasAsk) askInput.value = (parseFloat(savedAskVal) * factor).toFixed(2);
-      converted = true;
-      liveStatus.textContent = t("estimated", { cur: newCur, factor: factor.toFixed(3) })
-        + (markupOn ? t("markupOnNote", { pct: MARKUP_PCT }) : "");
-      liveStatus.style.color = "#a89e8c";
-    } catch (err) {
-      console.error("FX conversion unavailable (non-fatal):", err);
-    }
-
-    if (!converted) {
-      KARATS.forEach(k => { rates[k.key] = ""; baseRates[k.key] = ""; });
-      rateInput.value = "";
-      askInput.value = "";
-      liveStatus.textContent = t("currencySet", { cur: newCur });
-      liveStatus.style.color = "#a89e8c";
-    }
-
+    // 3) Nothing fetched today (or FX unavailable): clear and prompt to fetch.
+    KARATS.forEach(k => { rates[k.key] = ""; baseRates[k.key] = ""; });
+    rateInput.value = "";
+    setStatus("currencySet", { cur: newCur }, "#a89e8c");
     calculate();
     syncFetchButtonState();
   });
@@ -531,11 +545,12 @@
   }
 
   function calculate() {
-    const rate = parseFloat(rateInput.value) || 0;
-    const w = parseFloat(weightInput.value) || 0;
-    const makingVal = parseFloat(makingInput.value) || 0;
-    const vat = parseFloat(vatInput.value) || 0;
-    const ask = parseFloat(askInput.value) || 0;
+    const nn = v => Math.max(0, parseFloat(v) || 0); // negatives are meaningless here
+    const rate = nn(rateInput.value);
+    const w = nn(weightInput.value);
+    const makingVal = nn(makingInput.value);
+    const vat = nn(vatInput.value);
+    const ask = nn(askInput.value);
 
     const goldValue = rate * w;
     const making = makingType === "flat" ? makingVal * w : goldValue * (makingVal / 100);
@@ -593,10 +608,27 @@
 
   // ---- Live rate via GoldAPI.io ----
   const GOLDAPI_KEY = "goldapi-20754dd61c9f4dda27ae97eaaa7cf503-io";
-  const GOLDAPI_DIRECT_CURRENCIES = ["USD", "EUR", "GBP", "AED", "SAR"];
+  const GOLDAPI_DIRECT_CURRENCIES = ["USD", "EUR", "AED", "SAR"];
 
   const refreshBtn = document.getElementById("refreshBtn");
   const liveStatus = document.getElementById("liveStatus");
+
+  // Status is stored as a translation key + vars so a language toggle re-renders it
+  // in the new language instead of resetting to "Not fetched yet."
+  let lastStatus = { key: "notFetched", vars: {}, color: "#a89e8c" };
+  function renderStatus() {
+    const st = lastStatus;
+    const vars = Object.assign({}, st.vars);
+    if (st.key === "updated") vars.cache = st.fromCache ? t("cached") : "";
+    let text = t(st.key, vars);
+    if (st.markupNote && markupOn) text += t("markupOnNote", { pct: MARKUP_PCT });
+    liveStatus.textContent = text;
+    liveStatus.style.color = st.color;
+  }
+  function setStatus(key, vars, color, opts) {
+    lastStatus = Object.assign({ key, vars: vars || {}, color: color || "#a89e8c" }, opts || {});
+    renderStatus();
+  }
   const confirmModal = document.getElementById("confirmModal");
   const confirmFetchBtn = document.getElementById("confirmFetch");
   const cancelFetchBtn = document.getElementById("cancelFetch");
@@ -604,17 +636,33 @@
   const forceFetchLink = document.getElementById("forceFetchLink");
 
   const CACHE_KEY = "gold_calc_rate_cache";
-  function readCache() {
-    try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : null; }
-    catch (_) { return null; }
+  // Cache is a map keyed by currency: { AED: {date,k18,...}, USD: {...} }.
+  // Migrates the old single-object format ({date, currency, k18...}) transparently.
+  function readCacheMap() {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.currency && parsed.k24 !== undefined) return { [parsed.currency]: parsed };
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_) { return {}; }
+  }
+  function readCacheFor(currency) {
+    const entry = readCacheMap()[currency];
+    return entry && entry.date === todayStr() ? entry : null;
   }
   function writeCache(obj) {
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify(obj)); } catch (_) {}
+    try {
+      const map = readCacheMap();
+      map[obj.currency] = obj;
+      // prune entries from previous days so the map never grows stale
+      for (const cur in map) if (map[cur].date !== todayStr()) delete map[cur];
+      localStorage.setItem(CACHE_KEY, JSON.stringify(map));
+    } catch (_) {}
   }
 
   function syncFetchButtonState() {
-    const cached = readCache();
-    const isToday = cached && cached.date === todayStr() && cached.currency === currencySelect.value;
+    const isToday = !!readCacheFor(currencySelect.value);
     if (isToday) {
       refreshBtn.textContent = t("alreadyFetched");
       refreshBtn.disabled = true;
@@ -654,10 +702,10 @@
     baseRates["24"] = parseFloat(parsed.k24);
     deriveRatesFromBase();
     const curNote = parsed.currency ? ` (${parsed.currency})` : "";
-    const cacheNote = fromCache ? t("cached") : "";
-    const markupNote = markupOn ? t("markupOnNote", { pct: MARKUP_PCT }) : "";
-    liveStatus.textContent = t("updated", { date: parsed.date || "today", cur: curNote, source: parsed.source || "GoldAPI.io", cache: cacheNote }) + markupNote;
-    liveStatus.style.color = "#8ea87a";
+    setStatus("updated",
+      { date: parsed.date || "today", cur: curNote, source: parsed.source || "GoldAPI.io" },
+      "#8ea87a",
+      { fromCache: !!fromCache, markupNote: true });
     syncFetchButtonState();
   }
 
@@ -673,8 +721,8 @@
   markupToggle.checked = markupOn;
 
   (function initFromCache() {
-    const cached = readCache();
-    if (cached && cached.date === todayStr() && cached.currency === currencySelect.value) {
+    const cached = readCacheFor(currencySelect.value);
+    if (cached) {
       applyRates(cached, true);
     } else {
       // No cache: derive the seeded default rates through the current markup setting.
@@ -684,13 +732,13 @@
   })();
 
   refreshBtn.addEventListener("click", () => {
-    const cached = readCache();
-    confirmText.textContent = (cached && cached.date === todayStr() && cached.currency === currencySelect.value)
-      ? t("confirmCached") : t("confirmNew");
+    confirmText.textContent = readCacheFor(currencySelect.value) ? t("confirmCached") : t("confirmNew");
     confirmModal.classList.add("open");
   });
 
   cancelFetchBtn.addEventListener("click", () => confirmModal.classList.remove("open"));
+  confirmModal.addEventListener("click", (e) => { if (e.target === confirmModal) confirmModal.classList.remove("open"); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") confirmModal.classList.remove("open"); });
   confirmFetchBtn.addEventListener("click", () => { confirmModal.classList.remove("open"); fetchLiveRates(); });
 
   forceFetchLink.addEventListener("click", (e) => {
@@ -715,8 +763,7 @@
 
   async function fetchLiveRates() {
     refreshBtn.disabled = true;
-    liveStatus.textContent = t("fetching");
-    liveStatus.style.color = "#c8a250";
+    setStatus("fetching", {}, "#c8a250");
     const targetCurrency = currencySelect.value;
 
     try {
@@ -739,8 +786,8 @@
     } catch (err) {
       console.error("Live rate fetch failed:", err);
       const msg = err && err.message ? err.message : "unknown error";
-      liveStatus.textContent = msg.includes("Failed to fetch") ? t("fetchFailNet") : t("fetchFail", { msg });
-      liveStatus.style.color = "#c05a4a";
+      if (msg.includes("Failed to fetch")) setStatus("fetchFailNet", {}, "#c05a4a");
+      else setStatus("fetchFail", { msg }, "#c05a4a");
     } finally {
       refreshBtn.disabled = false;
       syncFetchButtonState();
@@ -760,8 +807,10 @@
       }
     });
     document.getElementById("langBtn").textContent = t("langName");
+    buildCurrencyOptions(currencySelect.value); // re-localize currency descriptions
     updateLabels();
     // refresh dynamic strings that depend on current state
+    renderStatus();
     syncFetchButtonState();
     calculate();
   }
@@ -771,12 +820,6 @@
     try { localStorage.setItem("gold_calc_lang", lang); } catch (_) {}
     applyLanguage();
   });
-
-  // restore saved language
-  try {
-    const savedLang = localStorage.getItem("gold_calc_lang");
-    if (savedLang === "ar" || savedLang === "en") lang = savedLang;
-  } catch (_) {}
 
   renderStamps();
   applyLanguage();
