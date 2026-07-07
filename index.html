@@ -72,6 +72,15 @@
   .tip { font-size: 13px; color: #a89e8c; line-height: 1.55; }
   footer { margin-top: 32px; font-size: 11px; color: #6f6455; text-align: center; line-height: 1.6; }
 
+  /* --- 30-day trend sparkline --- */
+  .trend-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .trend-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #8c7f6a; }
+  html[dir="rtl"] .trend-eyebrow { font-family: 'Noto Naskh Arabic', sans-serif; letter-spacing: normal; }
+  .trend-delta { font-family: 'IBM Plex Mono', monospace; font-size: 12px; direction: ltr; }
+  .trend-canvas-wrap { position: relative; width: 100%; height: 90px; direction: ltr; }
+  .trend-dates { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #6f6455; margin-top: 4px; direction: ltr; }
+  .trend-status { font-size: 11.5px; color: #a89e8c; margin-top: 6px; }
+
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
   .modal-overlay.open { display: flex; }
   .modal-box { background: #1c1712; border: 1px solid #3a332a; border-radius: 10px; padding: 24px; max-width: 380px; width: 100%; }
@@ -116,6 +125,18 @@
     <div style="margin-top:8px;">
       <a href="#" id="forceFetchLink" data-i18n="fetchAgain" style="display:none; font-size:11px; color:#6f6455; text-decoration:underline;">Fetch again anyway</a>
     </div>
+  </div>
+
+  <div class="panel" id="trendPanel" style="margin-bottom:24px;">
+    <div class="trend-head">
+      <span class="trend-eyebrow" id="trendEyebrow">30-DAY SPOT TREND · 24K</span>
+      <span class="trend-delta" id="trendDelta"></span>
+    </div>
+    <div class="trend-canvas-wrap">
+      <canvas id="trendCanvas" role="img" aria-label="30-day gold spot price trend"></canvas>
+    </div>
+    <div class="trend-dates"><span id="trendStart"></span><span id="trendEnd"></span></div>
+    <div class="trend-status" id="trendStatus">Loading 30-day trend…</div>
   </div>
 
   <div class="stamp-row" id="stampRow"></div>
@@ -204,6 +225,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
   // ---- i18n dictionary ----
   const I18N = {
@@ -267,6 +289,10 @@
       currencySet: "Currency set to {cur}. Tap Fetch to pull today's {cur} gold rate.",
       fetchFailNet: "Network/CORS error reaching GoldAPI. It may not allow direct browser calls.",
       fetchFail: "Fetch failed: {msg}",
+      trendEyebrow: "30-DAY SPOT TREND · {k}",
+      trendLoading: "Loading 30-day trend…",
+      trendUnavailable: "30-day trend unavailable right now.",
+      trendNote: "Spot trend (not retail fix) · {cur}/g",
       langName: "العربية",
     },
     ar: {
@@ -328,6 +354,10 @@
       currencySet: "تم ضبط العملة على {cur}. اضغط «جلب» للحصول على سعر الذهب لليوم بعملة {cur}.",
       fetchFailNet: "خطأ شبكة/CORS في الوصول إلى GoldAPI. قد لا تسمح بالاتصال المباشر من المتصفح.",
       fetchFail: "فشل الجلب: {msg}",
+      trendEyebrow: "اتجاه السعر الفوري · ٣٠ يوماً · {k}",
+      trendLoading: "جارٍ تحميل اتجاه ٣٠ يوماً…",
+      trendUnavailable: "اتجاه ٣٠ يوماً غير متاح حالياً.",
+      trendNote: "اتجاه السعر الفوري (ليس سعر التجزئة) · {cur}/غ",
       langName: "English",
     },
   };
@@ -813,6 +843,7 @@
     renderStatus();
     syncFetchButtonState();
     calculate();
+    if (typeof renderTrend === "function") renderTrend();
   }
 
   document.getElementById("langBtn").addEventListener("click", () => {
@@ -820,6 +851,155 @@
     try { localStorage.setItem("gold_calc_lang", lang); } catch (_) {}
     applyLanguage();
   });
+
+  // ---- 30-day spot trend sparkline (via Cloudflare Worker → CommodityPriceAPI) ----
+  // The Worker holds the API key server-side and returns XAU (USD, per troy ounce) OHLC.
+  // We take the daily close, convert oz→gram, scale by the active karat's fineness,
+  // apply USD→selected-currency FX (reusing getFxFactor), and plot the close series.
+  const TREND_WORKER_URL = "https://startfromscratch.liveshort.workers.dev/";
+  const TREND_WINDOW_DAYS = 30;
+  const GRAMS_PER_TROY_OZ = 31.1035;
+  const TREND_CACHE_KEY = "gold_calc_trend_cache";
+
+  let trendChart = null;
+  let trendRawUsdCloses = null; // [{date, usdPerOz}] cached for the day, currency-independent
+
+  function isoDaysAgo(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+
+  function fineness(kKey) {
+    // 24K = pure. 22K ≈ 0.9167, 18K = 0.75. Derived from KARATS fineness field (e.g. "750").
+    const k = KARATS.find(x => x.key === kKey);
+    return k ? parseInt(k.fineness, 10) / 1000 : 1;
+  }
+
+  // Read the raw USD/oz close series: from today's cache if present, else fetch the Worker once.
+  async function getTrendUsdCloses() {
+    if (trendRawUsdCloses) return trendRawUsdCloses;
+    try {
+      const raw = localStorage.getItem(TREND_CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.date === todayStr() && Array.isArray(parsed.series) && parsed.series.length) {
+          trendRawUsdCloses = parsed.series;
+          return trendRawUsdCloses;
+        }
+      }
+    } catch (_) {}
+
+    const startDate = isoDaysAgo(TREND_WINDOW_DAYS - 1);
+    const endDate = todayStr();
+    const url = `${TREND_WORKER_URL}?startDate=${startDate}&endDate=${endDate}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Trend worker error ${resp.status}`);
+    const data = await resp.json();
+    if (!data || !data.success || !data.rates) throw new Error("Trend response malformed");
+
+    // rates is a date-keyed map; sort ascending and pull XAU.close for each day.
+    const series = Object.keys(data.rates).sort().map(date => {
+      const x = data.rates[date] && data.rates[date].XAU;
+      const close = x && typeof x.close === "number" ? x.close : null;
+      return { date, usdPerOz: close };
+    }).filter(p => p.usdPerOz != null);
+
+    if (!series.length) throw new Error("Trend series empty");
+    trendRawUsdCloses = series;
+    try { localStorage.setItem(TREND_CACHE_KEY, JSON.stringify({ date: todayStr(), series })); } catch (_) {}
+    return series;
+  }
+
+  // Convert one USD/oz close into the selected currency, per gram, at the active karat.
+  function convertTrendPoint(usdPerOz, fxFactor, kKey) {
+    return (usdPerOz / GRAMS_PER_TROY_OZ) * fineness(kKey) * fxFactor;
+  }
+
+  async function renderTrend() {
+    const statusEl = document.getElementById("trendStatus");
+    const deltaEl = document.getElementById("trendDelta");
+    const eyebrowEl = document.getElementById("trendEyebrow");
+    const kLabel = (KARATS.find(x => x.key === karat) || {}).label || "24K";
+    eyebrowEl.textContent = t("trendEyebrow", { k: kLabel });
+
+    let series;
+    try {
+      series = await getTrendUsdCloses();
+    } catch (err) {
+      console.error("Trend fetch failed:", err);
+      statusEl.textContent = t("trendUnavailable");
+      deltaEl.textContent = "";
+      document.getElementById("trendStart").textContent = "";
+      document.getElementById("trendEnd").textContent = "";
+      if (trendChart) { trendChart.destroy(); trendChart = null; }
+      return;
+    }
+
+    const cur = currencySelect.value;
+    let fxFactor = 1;
+    try { fxFactor = await getFxFactor("USD", cur); }
+    catch (_) { fxFactor = (USD_PEGS[cur] || 1); } // fall back to peg if FX unavailable
+
+    const values = series.map(p => +convertTrendPoint(p.usdPerOz, fxFactor, karat).toFixed(2));
+    const labels = series.map(p => p.date);
+
+    // delta across the window (first → last), shown as amount/g then percentage
+    const first = values[0], last = values[values.length - 1];
+    const deltaAmt = last - first;
+    const deltaPct = first > 0 ? (deltaAmt / first) * 100 : 0;
+    const up = deltaAmt >= 0;
+    deltaEl.textContent = `${up ? "▲" : "▼"} ${cur} ${Math.abs(deltaAmt).toFixed(2)}/g (${Math.abs(deltaPct).toFixed(1)}%)`;
+    deltaEl.style.color = up ? "#8ea87a" : "#c05a4a";
+
+    document.getElementById("trendStart").textContent = labels[0];
+    document.getElementById("trendEnd").textContent = labels[labels.length - 1];
+    statusEl.textContent = t("trendNote", { cur });
+
+    const ctx = document.getElementById("trendCanvas").getContext("2d");
+    if (trendChart) trendChart.destroy();
+    trendChart = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets: [{
+        data: values,
+        borderColor: "#c8a250",
+        borderWidth: 2,
+        pointRadius: (c) => c.dataIndex === values.length - 1 ? 3 : 0,
+        pointBackgroundColor: "#ecd9a6",
+        tension: 0.3,
+        fill: true,
+        backgroundColor: "rgba(200,162,80,0.08)",
+      }]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: {
+          displayColors: false,
+          callbacks: {
+            title: (items) => items[0].label,
+            label: (c) => `${cur} ${c.parsed.y.toFixed(2)}/g`,
+          },
+        }},
+        scales: { x: { display: false }, y: { display: false, grace: "8%" } },
+        interaction: { intersect: false, mode: "index" },
+      },
+    });
+  }
+
+  // Re-render the trend when the karat stamp changes (tracks active karat).
+  (function hookTrendToKarat() {
+    const origRenderStamps = renderStamps;
+    renderStamps = function () {
+      origRenderStamps();
+      // stamp buttons rebind onclick inside origRenderStamps; wrap each to also refresh the trend
+      stampRow.querySelectorAll(".stamp").forEach((btn, i) => {
+        const prev = btn.onclick;
+        btn.onclick = (e) => { if (prev) prev(e); renderTrend(); };
+      });
+    };
+  })();
+
+  // Re-render the trend when the currency changes (follows selected currency).
+  currencySelect.addEventListener("change", () => { renderTrend(); });
 
   renderStamps();
   applyLanguage();
