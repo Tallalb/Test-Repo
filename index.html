@@ -101,6 +101,15 @@
   .modal-btn { padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #3a332a; font-family: inherit; }
   .modal-btn.cancel { background: transparent; color: #a89e8c; }
   .modal-btn.confirm { background: #c8a250; color: #14110d; border-color: #c8a250; font-weight: 600; }
+
+  /* --- Settings sync (quiet, optional-feeling) --- */
+  .sync-wrap { margin-top: 22px; padding-top: 14px; border-top: 1px solid #2c261c; }
+  .sync-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sync-input { flex: 1; min-width: 120px; margin: 0 !important; padding: 7px 10px !important; font-size: 13px !important; }
+  .sync-btn { background: transparent; border: 1px solid #3a332a; color: #8c7f6a; border-radius: 6px; padding: 7px 14px; font-size: 12px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .sync-btn:hover { border-color: #6f6455; color: #a89e8c; }
+  .sync-status { font-size: 11.5px; color: #6f6455; margin-top: 8px; line-height: 1.5; }
+  .sync-status a { color: #6f6455; text-decoration: underline; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -211,6 +220,17 @@
         <input type="number" id="askInput" step="0.01" min="0" placeholder="e.g. 4200" />
       </label>
 
+      <div class="sync-wrap" id="syncWrap">
+        <div class="sync-row" id="syncSetupRow">
+          <input type="text" id="syncUsernameInput" class="sync-input" data-i18n-placeholder="syncUsernamePlaceholder" placeholder="Enter your username to sync" />
+          <button class="sync-btn" id="syncSetupBtn" data-i18n="syncSetupBtn">Set up sync</button>
+        </div>
+        <div class="sync-row" id="syncSavedRow" style="display:none;">
+          <button class="sync-btn" id="syncSaveBtn" data-i18n="syncSaveBtn">Save settings</button>
+        </div>
+        <div class="sync-status" id="syncStatus"></div>
+      </div>
+
       <div class="verdict-box" id="verdictBox" style="display:none;">
         <div class="verdict-badge" id="verdictBadge"></div>
         <div class="gauge-wrap">
@@ -316,6 +336,18 @@
       trendUnavailable: "30-day trend unavailable right now.",
       trendNote: "Spot trend (not retail fix) · {unit}",
       langName: "العربية",
+      // settings sync
+      syncUsernamePlaceholder: "Enter your username to sync",
+      syncSetupBtn: "Set up sync",
+      syncSaveBtn: "Save settings",
+      syncStatusNoUser: "Settings sync is off. Enter a username above to save your setup and load it on other devices.",
+      syncStatusSynced: "Synced as {user}. · <a id=\"syncChangeLink\">not you?</a>",
+      syncStatusSaving: "Saving…",
+      syncStatusSavedJustNow: "Saved just now, synced as {user}. · <a id=\"syncChangeLink\">not you?</a>",
+      syncStatusLoading: "Loading your synced settings…",
+      syncStatusLoadedNone: "No saved settings yet for {user}. · <a id=\"syncChangeLink\">not you?</a>",
+      syncStatusError: "Sync error: {msg}",
+      syncUsernameInvalid: "Username must be 3–32 letters, numbers, - or _.",
     },
     ar: {
       eyebrow: "فحص سعر الذهب",
@@ -383,6 +415,18 @@
       belowHigh: "السعر اليوم <span class=\"range-amt\">{amt}</span> أقل من أعلى سعر خلال 30 يوماً",
       aboveLow: "السعر اليوم <span class=\"range-amt\">{amt}</span> فوق أدنى سعر خلال 30 يوماً",
       langName: "English",
+      // settings sync
+      syncUsernamePlaceholder: "أدخل اسم المستخدم للمزامنة",
+      syncSetupBtn: "تفعيل المزامنة",
+      syncSaveBtn: "حفظ الإعدادات",
+      syncStatusNoUser: "مزامنة الإعدادات متوقفة. أدخل اسم مستخدم أعلاه لحفظ إعداداتك وتحميلها على أجهزة أخرى.",
+      syncStatusSynced: "مُزامَن باسم {user}. · <a id=\"syncChangeLink\">لست أنت؟</a>",
+      syncStatusSaving: "جارٍ الحفظ…",
+      syncStatusSavedJustNow: "تم الحفظ الآن، مُزامَن باسم {user}. · <a id=\"syncChangeLink\">لست أنت؟</a>",
+      syncStatusLoading: "جارٍ تحميل إعداداتك المُزامنة…",
+      syncStatusLoadedNone: "لا توجد إعدادات محفوظة بعد لـ {user}. · <a id=\"syncChangeLink\">لست أنت؟</a>",
+      syncStatusError: "خطأ في المزامنة: {msg}",
+      syncUsernameInvalid: "اسم المستخدم يجب أن يكون ٣-٣٢ حرفاً أو رقماً أو - أو _.",
     },
   };
 
@@ -848,6 +892,144 @@
     }
   }
 
+  // ---- Settings sync (Worker + KV, keyed by a self-chosen username) ----
+  const SETTINGS_WORKER_URL = "https://startfromscratch.liveshort.workers.dev/settings";
+  const SYNC_USER_KEY = "gold_calc_sync_user";
+  const SYNC_CODE_PATTERN = /^[A-Za-z0-9_-]{3,32}$/;
+
+  let syncUsername = null;
+  try { syncUsername = localStorage.getItem(SYNC_USER_KEY); } catch (_) {}
+
+  const syncSetupRow = document.getElementById("syncSetupRow");
+  const syncSavedRow = document.getElementById("syncSavedRow");
+  const syncUsernameInput = document.getElementById("syncUsernameInput");
+  const syncSetupBtn = document.getElementById("syncSetupBtn");
+  const syncSaveBtn = document.getElementById("syncSaveBtn");
+  const syncStatusEl = document.getElementById("syncStatus");
+
+  function collectSyncSettings() {
+    return {
+      karat,
+      currency: currencySelect.value,
+      markup: markupOn,
+      makingType,
+      makingValue: parseFloat(makingInput.value) || 0,
+      tax: parseFloat(vatInput.value) || 0,
+    };
+  }
+
+  // Applies a loaded settings object to the live UI/state without touching weight or ask price
+  // (those stay per-transaction, never synced) and without re-fetching live rates.
+  function applySyncSettings(s) {
+    if (!s || typeof s !== "object") return;
+    if (s.currency && CURRENCIES.some(c => c.code === s.currency)) {
+      currencySelect.value = s.currency;
+      try { localStorage.setItem("gold_calc_currency", s.currency); } catch (_) {}
+    }
+    if (typeof s.markup === "boolean") {
+      markupOn = s.markup;
+      markupToggle.checked = markupOn;
+      try { localStorage.setItem("gold_calc_markup", markupOn ? "1" : "0"); } catch (_) {}
+    }
+    if (s.makingType === "flat" || s.makingType === "percent") {
+      makingType = s.makingType;
+      if (makingType === "flat") { btnFlat.classList.add("active"); btnPercent.classList.remove("active"); }
+      else { btnPercent.classList.add("active"); btnFlat.classList.remove("active"); }
+    }
+    if (s.makingValue != null && !isNaN(s.makingValue)) makingInput.value = s.makingValue;
+    if (s.tax != null && !isNaN(s.tax)) vatInput.value = s.tax;
+    if (s.karat && KARATS.some(k => k.key === s.karat)) {
+      karat = s.karat;
+      renderStamps();
+      updateLabels();
+    }
+    reapplyMarkup(); // re-derives rateInput from baseRates × markup for the (possibly new) karat
+    calculate();
+    if (typeof renderTrend === "function") renderTrend();
+  }
+
+  function renderSyncRows() {
+    if (syncUsername) {
+      syncSetupRow.style.display = "none";
+      syncSavedRow.style.display = "flex";
+    } else {
+      syncSetupRow.style.display = "flex";
+      syncSavedRow.style.display = "none";
+    }
+  }
+
+  function setSyncStatus(key, vars) {
+    syncStatusEl.innerHTML = t(key, vars);
+    const link = document.getElementById("syncChangeLink");
+    if (link) link.addEventListener("click", (e) => { e.preventDefault(); changeSyncUser(); });
+  }
+
+  function changeSyncUser() {
+    try { localStorage.removeItem(SYNC_USER_KEY); } catch (_) {}
+    syncUsername = null;
+    syncUsernameInput.value = "";
+    renderSyncRows();
+    setSyncStatus("syncStatusNoUser");
+  }
+
+  async function loadSyncSettings(username, { silent } = {}) {
+    if (!silent) setSyncStatus("syncStatusLoading");
+    try {
+      const resp = await fetch(`${SETTINGS_WORKER_URL}?code=${encodeURIComponent(username)}`);
+      if (resp.status === 404) {
+        setSyncStatus("syncStatusLoadedNone", { user: username });
+        return;
+      }
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      applySyncSettings(data);
+      setSyncStatus("syncStatusSynced", { user: username });
+    } catch (err) {
+      console.error("Sync load failed:", err);
+      setSyncStatus("syncStatusError", { msg: err && err.message ? err.message : "unknown" });
+    }
+  }
+
+  async function saveSyncSettings(username) {
+    setSyncStatus("syncStatusSaving");
+    try {
+      const resp = await fetch(SETTINGS_WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: username, settings: collectSyncSettings() }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
+      setSyncStatus("syncStatusSavedJustNow", { user: username });
+    } catch (err) {
+      console.error("Sync save failed:", err);
+      setSyncStatus("syncStatusError", { msg: err && err.message ? err.message : "unknown" });
+    }
+  }
+
+  syncSetupBtn.addEventListener("click", async () => {
+    const candidate = syncUsernameInput.value.trim();
+    if (!SYNC_CODE_PATTERN.test(candidate)) {
+      setSyncStatus("syncUsernameInvalid");
+      return;
+    }
+    try { localStorage.setItem(SYNC_USER_KEY, candidate); } catch (_) {}
+    syncUsername = candidate;
+    renderSyncRows();
+    await loadSyncSettings(syncUsername);
+  });
+
+  syncSaveBtn.addEventListener("click", () => {
+    if (syncUsername) saveSyncSettings(syncUsername);
+  });
+
+  renderSyncRows();
+  if (syncUsername) {
+    loadSyncSettings(syncUsername, { silent: true }); // auto-load on page open, no extra tap needed
+  } else {
+    setSyncStatus("syncStatusNoUser");
+  }
+
   // ---- Language toggle ----
   function applyLanguage() {
     document.documentElement.lang = lang;
@@ -860,12 +1042,16 @@
         el.textContent = t(key);
       }
     });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+      el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
+    });
     document.getElementById("langBtn").textContent = t("langName");
     buildCurrencyOptions(currencySelect.value); // re-localize currency descriptions
     updateLabels();
     // refresh dynamic strings that depend on current state
     renderStatus();
     syncFetchButtonState();
+    setSyncStatus(syncUsername ? "syncStatusSynced" : "syncStatusNoUser", syncUsername ? { user: syncUsername } : undefined);
     calculate();
     if (typeof renderTrend === "function") renderTrend();
   }
