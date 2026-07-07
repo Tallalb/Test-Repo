@@ -110,6 +110,15 @@
   .sync-btn:hover { border-color: #6f6455; color: #a89e8c; }
   .sync-status { font-size: 11.5px; color: #6f6455; margin-top: 8px; line-height: 1.5; }
   .sync-status a { color: #6f6455; text-decoration: underline; cursor: pointer; }
+
+  /* --- Seller's ask breakdown --- */
+  .ask-breakdown { margin-top: 6px; padding: 16px; background: #14110d; border: 1px solid #2c261c; border-radius: 8px; }
+  .ask-breakdown-title { font-family: 'Cormorant Garamond', serif; font-size: 16px; color: #c8a250; font-weight: 600; margin-bottom: 8px; }
+  html[dir="rtl"] .ask-breakdown-title { font-family: 'Noto Naskh Arabic', serif; }
+  .ask-breakdown .line.big .value-text { color: #ecd9a6; }
+  .ask-breakdown-note { font-size: 11.5px; color: #6f6455; line-height: 1.5; margin-top: 10px; }
+  .ask-breakdown-note.warn { color: #c9776b; }
+  .ab-subtotal-inline { font-size: 11px; color: #8c7f6a; }
 </style>
 </head>
 <body>
@@ -203,6 +212,17 @@
         <input type="number" id="vatInput" step="0.1" min="0" value="5" />
       </label>
       <div class="hint" data-i18n="taxHint">Enter the sales tax / VAT rate that applies to jewelry purchases in your location.</div>
+
+      <div class="sync-wrap" id="syncWrap">
+        <div class="sync-row" id="syncSetupRow">
+          <input type="text" id="syncUsernameInput" class="sync-input" data-i18n-placeholder="syncUsernamePlaceholder" placeholder="Enter your username to sync" />
+          <button class="sync-btn" id="syncSetupBtn" data-i18n="syncSetupBtn">Set up sync</button>
+        </div>
+        <div class="sync-row" id="syncSavedRow" style="display:none;">
+          <button class="sync-btn" id="syncSaveBtn" data-i18n="syncSaveBtn">Save settings</button>
+        </div>
+        <div class="sync-status" id="syncStatus"></div>
+      </div>
     </section>
 
     <section class="panel">
@@ -220,15 +240,16 @@
         <input type="number" id="askInput" step="0.01" min="0" placeholder="e.g. 4200" />
       </label>
 
-      <div class="sync-wrap" id="syncWrap">
-        <div class="sync-row" id="syncSetupRow">
-          <input type="text" id="syncUsernameInput" class="sync-input" data-i18n-placeholder="syncUsernamePlaceholder" placeholder="Enter your username to sync" />
-          <button class="sync-btn" id="syncSetupBtn" data-i18n="syncSetupBtn">Set up sync</button>
-        </div>
-        <div class="sync-row" id="syncSavedRow" style="display:none;">
-          <button class="sync-btn" id="syncSaveBtn" data-i18n="syncSaveBtn">Save settings</button>
-        </div>
-        <div class="sync-status" id="syncStatus"></div>
+      <div class="ask-breakdown" id="askBreakdown" style="display:none;">
+        <div class="ask-breakdown-title" id="askBreakdownTitle" data-i18n="askBreakdownTitle">Where their price goes</div>
+        <div class="line" id="abGold"><span class="label-text"></span><span class="value-text"></span></div>
+        <div class="line" id="abMaking"><span class="label-text"></span><span class="value-text"></span></div>
+        <div class="line muted" id="abMakingPct"><span class="label-text"></span><span class="value-text"></span></div>
+        <div class="line muted" id="abSubtotal"><span class="label-text"></span><span class="value-text"></span></div>
+        <div class="line" id="abVat"><span class="label-text"></span><span class="value-text"></span></div>
+        <div class="divider"></div>
+        <div class="line" id="abTotal"><span class="label-text"></span><span class="value-text"></span></div>
+        <div class="ask-breakdown-note" id="abNote"></div>
       </div>
 
       <div class="verdict-box" id="verdictBox" style="display:none;">
@@ -300,6 +321,18 @@
       askTitle: "Seller's ask price",
       askLabel: "What are they asking?",
       theirAsk: "Their ask",
+      // ask breakdown
+      askBreakdownTitle: "Where their price goes",
+      abGold: "Gold value",
+      abMaking: "Implied making charge / g",
+      abMakingTotal: "(total {total})",
+      abMakingPct: "↳ equivalent %",
+      abSubtotal: "Pre-VAT subtotal",
+      abVat: "VAT ({p}%)",
+      abTotal: "Total (their ask)",
+      abNote: "Their ask is treated as VAT-inclusive. After stripping VAT and the gold value, what's left is the making charge they've built in — the labor premium you actually negotiate on.",
+      abNoteWarn: "Their ask is below the gold value alone. Either the rate is too high (is retail markup wrongly on?) or the ask was mistyped.",
+      abNoteNoRate: "Enter or fetch today's gold rate for this currency to see the breakdown. The rate was cleared when you switched currency.",
       gaugeMid: "fair value → acceptable margin",
       footer: "Estimates only — actual invoices may include small local fees. Always confirm the day's fixed rate on the receipt before paying.",
       confirmTitle: "Fetch live rate?",
@@ -380,6 +413,18 @@
       askTitle: "السعر المطلوب من البائع",
       askLabel: "كم يطلبون؟",
       theirAsk: "سعرهم المطلوب",
+      // ask breakdown
+      askBreakdownTitle: "إلى أين يذهب سعرهم",
+      abGold: "قيمة الذهب",
+      abMaking: "أجرة الصياغة الضمنية / غرام",
+      abMakingTotal: "(الإجمالي {total})",
+      abMakingPct: "↳ ما يعادلها بالنسبة المئوية",
+      abSubtotal: "المجموع قبل الضريبة",
+      abVat: "ضريبة القيمة المضافة ({p}٪)",
+      abTotal: "الإجمالي (سعرهم المطلوب)",
+      abNote: "يُعامَل السعر المطلوب على أنه شامل للضريبة. بعد استبعاد الضريبة وقيمة الذهب، يتبقى أجرة الصياغة التي أضافوها — وهي الهامش الذي تفاوض عليه فعلياً.",
+      abNoteWarn: "السعر المطلوب أقل من قيمة الذهب وحدها. إما أن السعر مرتفع جداً (هل تم تفعيل هامش التجزئة بالخطأ؟) أو أن المبلغ أُدخل خطأً.",
+      abNoteNoRate: "أدخل أو اجلب سعر الذهب لهذا اليوم بهذه العملة لعرض التفصيل. تم مسح السعر عند تبديل العملة.",
       gaugeMid: "القيمة العادلة → الهامش المقبول",
       footer: "تقديرات فقط — قد تتضمّن الفواتير الفعلية رسوماً محلية بسيطة. تأكّد دائماً من السعر المثبّت لليوم على الإيصال قبل الدفع.",
       confirmTitle: "جلب السعر اليومي \"مباشر\"؟",
@@ -465,6 +510,11 @@
   let karat = "18";
   let rates = Object.fromEntries(KARATS.map(k => [k.key, k.defaultRate]));
   let makingType = "flat";
+  // Each mode keeps its own remembered value so switching flat<->percent
+  // doesn't erase the other. Seeded with sensible defaults; the flat one
+  // matches the input's initial HTML value.
+  let makingFlatValue = 25;
+  let makingPercentValue = 12;
 
   function fmt(n) {
     if (!isFinite(n)) return "—";
@@ -525,8 +575,33 @@
 
   rateInput.value = rates[karat];
 
-  btnFlat.onclick = () => { makingType = "flat"; btnFlat.classList.add("active"); btnPercent.classList.remove("active"); calculate(); };
-  btnPercent.onclick = () => { makingType = "percent"; btnPercent.classList.add("active"); btnFlat.classList.remove("active"); calculate(); };
+  // Persist whatever is currently typed into the value store for the mode we're leaving.
+  function stashCurrentMakingValue() {
+    const v = parseFloat(makingInput.value);
+    if (makingType === "flat") makingFlatValue = isNaN(v) ? "" : v;
+    else makingPercentValue = isNaN(v) ? "" : v;
+  }
+  // Put the remembered value for the active mode back into the shared input field.
+  function loadMakingValueForMode() {
+    makingInput.value = makingType === "flat" ? makingFlatValue : makingPercentValue;
+  }
+
+  btnFlat.onclick = () => {
+    if (makingType === "flat") return;
+    stashCurrentMakingValue();      // save the percent value we're leaving
+    makingType = "flat";
+    btnFlat.classList.add("active"); btnPercent.classList.remove("active");
+    loadMakingValueForMode();       // restore the flat value
+    calculate();
+  };
+  btnPercent.onclick = () => {
+    if (makingType === "percent") return;
+    stashCurrentMakingValue();      // save the flat value we're leaving
+    makingType = "percent";
+    btnPercent.classList.add("active"); btnFlat.classList.remove("active");
+    loadMakingValueForMode();       // restore the percent value
+    calculate();
+  };
 
   markupToggle.addEventListener("change", () => {
     markupOn = markupToggle.checked;
@@ -548,6 +623,8 @@
     }
     calculate();
   });
+
+  makingInput.addEventListener("input", () => { stashCurrentMakingValue(); });
 
   [weightInput, makingInput, vatInput, askInput].forEach(el => el.addEventListener("input", () => {
     calculate();
@@ -666,9 +743,69 @@
     setLine("lineFair", t("fairPrice"), fair);
 
     const verdictBox = document.getElementById("verdictBox");
+    const askBreakdown = document.getElementById("askBreakdown");
     const hasAsk = askInput.value !== "" && !isNaN(ask);
-    if (!hasAsk) { verdictBox.style.display = "none"; return; }
+    if (!hasAsk) { verdictBox.style.display = "none"; askBreakdown.style.display = "none"; return; }
     verdictBox.style.display = "block";
+
+    // ---- Seller's ask breakdown (VAT-inclusive: strip VAT, then gold, leaving making) ----
+    // goldValue already reflects the retail-markup toggle via the rate field.
+    // If there's no valid rate yet (e.g. right after a currency switch, before a
+    // fetch/FX-derive populates the rate), gold value would be zero and the whole
+    // decomposition becomes meaningless — so show a prompt instead of a broken breakdown.
+    if (!(rate > 0) || !(goldValue > 0)) {
+      askBreakdown.style.display = "block";
+      const abNoteEl = document.getElementById("abNote");
+      ["abGold","abMaking","abMakingPct","abSubtotal","abVat","abTotal"].forEach(id => {
+        const el = document.getElementById(id);
+        el.style.display = (id === "abGold") ? "flex" : "none";
+      });
+      document.getElementById("abGold").querySelector(".label-text").textContent = t("askBreakdownTitle");
+      document.getElementById("abGold").querySelector(".value-text").textContent = "";
+      abNoteEl.textContent = t("abNoteNoRate");
+      abNoteEl.classList.add("warn");
+      return;
+    }
+    // valid rate — make sure all rows are visible again
+    ["abGold","abMaking","abMakingPct","abSubtotal","abVat","abTotal"].forEach(id => {
+      document.getElementById(id).style.display = "flex";
+    });
+    askBreakdown.style.display = "block";
+    const abPreVat = ask / (1 + vat / 100);
+    const abVatAmt = ask - abPreVat;
+    const abMaking = abPreVat - goldValue;           // total implied making charge
+    const abMakingPerG = w > 0 ? abMaking / w : 0;    // per-gram
+    const abMakingPct = goldValue > 0 ? (abMaking / goldValue) * 100 : 0;
+
+    setLine("abGold", t("abGold"), goldValue);
+    // Making charge shown per gram, with the summed total in smaller font in brackets.
+    {
+      const el = document.getElementById("abMaking");
+      el.querySelector(".label-text").textContent = t("abMaking");
+      const vEl = el.querySelector(".value-text");
+      if (isFinite(abMakingPerG)) {
+        vEl.innerHTML = `${fmt(abMakingPerG)} <span class="ab-subtotal-inline">${t("abMakingTotal", { total: fmt(abMaking) })}</span>`;
+      } else {
+        vEl.textContent = "—";
+      }
+    }
+    {
+      const el = document.getElementById("abMakingPct");
+      el.querySelector(".label-text").textContent = t("abMakingPct");
+      el.querySelector(".value-text").textContent = isFinite(abMakingPct) ? `${abMakingPct.toFixed(1)}%` : "—";
+    }
+    setLine("abSubtotal", t("abSubtotal"), abPreVat);
+    setLine("abVat", t("abVat", { p: vat }), abVatAmt);
+    setLine("abTotal", t("abTotal"), ask);
+
+    const abNoteEl = document.getElementById("abNote");
+    if (abMaking < 0) {
+      abNoteEl.textContent = t("abNoteWarn");
+      abNoteEl.classList.add("warn");
+    } else {
+      abNoteEl.textContent = t("abNote");
+      abNoteEl.classList.remove("warn");
+    }
 
     let label, color;
     if (diffPct <= 0) { label = t("vFair"); color = "#8ea87a"; }
@@ -908,12 +1045,18 @@
   const syncStatusEl = document.getElementById("syncStatus");
 
   function collectSyncSettings() {
+    stashCurrentMakingValue(); // make sure the active mode's value is captured before reading
+    const flatV = parseFloat(makingFlatValue) || 0;
+    const pctV = parseFloat(makingPercentValue) || 0;
     return {
       karat,
       currency: currencySelect.value,
       markup: markupOn,
       makingType,
-      makingValue: parseFloat(makingInput.value) || 0,
+      makingFlatValue: flatV,
+      makingPercentValue: pctV,
+      // legacy field kept so older app versions reading this entry still work
+      makingValue: makingType === "flat" ? flatV : pctV,
       tax: parseFloat(vatInput.value) || 0,
     };
   }
@@ -936,7 +1079,20 @@
       if (makingType === "flat") { btnFlat.classList.add("active"); btnPercent.classList.remove("active"); }
       else { btnPercent.classList.add("active"); btnFlat.classList.remove("active"); }
     }
-    if (s.makingValue != null && !isNaN(s.makingValue)) makingInput.value = s.makingValue;
+    // New dual-value schema. Fall back to the legacy single makingValue for
+    // whichever mode was active when an old entry was saved; the other mode
+    // keeps its existing default since the old schema never captured it.
+    if (s.makingFlatValue != null && !isNaN(s.makingFlatValue)) {
+      makingFlatValue = s.makingFlatValue;
+    } else if (s.makingValue != null && !isNaN(s.makingValue) && s.makingType === "flat") {
+      makingFlatValue = s.makingValue;
+    }
+    if (s.makingPercentValue != null && !isNaN(s.makingPercentValue)) {
+      makingPercentValue = s.makingPercentValue;
+    } else if (s.makingValue != null && !isNaN(s.makingValue) && s.makingType === "percent") {
+      makingPercentValue = s.makingValue;
+    }
+    loadMakingValueForMode(); // show the active mode's value in the shared field
     if (s.tax != null && !isNaN(s.tax)) vatInput.value = s.tax;
     if (s.karat && KARATS.some(k => k.key === s.karat)) {
       karat = s.karat;
