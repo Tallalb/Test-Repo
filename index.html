@@ -78,6 +78,10 @@
   .trend-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #8c7f6a; }
   html[dir="rtl"] .trend-eyebrow { font-family: 'Noto Naskh Arabic', sans-serif; letter-spacing: normal; }
   .trend-delta { font-family: 'IBM Plex Mono', monospace; font-size: 12px; direction: ltr; }
+  .trend-head-right { display: flex; align-items: baseline; gap: 8px; }
+  .trend-refresh { background: transparent; border: 1px solid #3a332a; border-radius: 6px; color: #c8a250; font-size: 13px; line-height: 1; padding: 3px 7px; cursor: pointer; font-family: inherit; }
+  .trend-refresh:hover { border-color: #c8a250; }
+  .trend-refresh:disabled { opacity: 0.4; cursor: default; }
   .trend-canvas-wrap { position: relative; width: 100%; height: 90px; direction: ltr; }
   .trend-dates { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #6f6455; margin-top: 4px; direction: ltr; }
   .trend-status { font-size: 11.5px; color: #a89e8c; margin-top: 6px; }
@@ -158,7 +162,10 @@
   <div class="panel" id="trendPanel" style="margin-bottom:24px;">
     <div class="trend-head">
       <span class="trend-eyebrow" id="trendEyebrow">30-DAY SPOT TREND · 24K</span>
-      <span class="trend-delta" id="trendDelta"></span>
+      <span class="trend-head-right">
+        <span class="trend-delta" id="trendDelta"></span>
+        <button type="button" class="trend-refresh" id="trendRefreshBtn" aria-label="Refresh trend" title="Refresh trend">&#8635;</button>
+      </span>
     </div>
     <div class="trend-canvas-wrap">
       <canvas id="trendCanvas" role="img" aria-label="30-day gold spot price trend"></canvas>
@@ -368,6 +375,10 @@
       trendLoading: "Loading 30-day trend…",
       trendUnavailable: "30-day trend unavailable right now.",
       trendNote: "Spot trend (not retail fix) · {unit}",
+      trendUpdatedAt: " · updated {time}",
+      trendFresh: "Trend was refreshed less than 15 minutes ago — data is already current.",
+      confirmTrendTitle: "Refresh 30-day trend?",
+      confirmTrend: "This will bypass today's cache and fetch fresh 30-day data from the API. Continue?",
       langName: "العربية",
       // settings sync
       syncUsernamePlaceholder: "Enter your username to sync",
@@ -457,6 +468,10 @@
       trendLoading: "جارٍ تحميل اتجاه 30 يوماً…",
       trendUnavailable: "اتجاه 30 يوماً غير متاح حالياً.",
       trendNote: "اتجاه السعر الفوري · {unit}",
+      trendUpdatedAt: " · مُحدّث {time}",
+      trendFresh: "تم تحديث الاتجاه قبل أقل من 15 دقيقة — البيانات محدّثة بالفعل.",
+      confirmTrendTitle: "تحديث اتجاه 30 يوماً؟",
+      confirmTrend: "سيتم تجاوز بيانات اليوم المحفوظة وجلب بيانات 30 يوماً الجديدة من المصدر. هل تريد المتابعة؟",
       belowHigh: "السعر اليوم <span class=\"range-amt\">{amt}</span> أقل من أعلى سعر خلال 30 يوماً",
       aboveLow: "السعر اليوم <span class=\"range-amt\">{amt}</span> فوق أدنى سعر خلال 30 يوماً",
       langName: "English",
@@ -966,20 +981,39 @@
     }
   })();
 
-  refreshBtn.addEventListener("click", () => {
-    confirmText.textContent = readCacheFor(currencySelect.value) ? t("confirmCached") : t("confirmNew");
+  // The confirm modal is shared: "rates" (GoldAPI fetch, default) or "trend"
+  // (30-day trend force-refresh). The mode decides what Yes does and which title
+  // shows; it resets to "rates" every time the modal is opened for rates.
+  let confirmMode = "rates";
+  const confirmTitleEl = confirmModal.querySelector(".modal-title");
+
+  function openConfirmForRates(text) {
+    confirmMode = "rates";
+    confirmTitleEl.textContent = t("confirmTitle");
+    confirmText.textContent = text;
     confirmModal.classList.add("open");
+  }
+
+  refreshBtn.addEventListener("click", () => {
+    openConfirmForRates(readCacheFor(currencySelect.value) ? t("confirmCached") : t("confirmNew"));
   });
 
   cancelFetchBtn.addEventListener("click", () => confirmModal.classList.remove("open"));
   confirmModal.addEventListener("click", (e) => { if (e.target === confirmModal) confirmModal.classList.remove("open"); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") confirmModal.classList.remove("open"); });
-  confirmFetchBtn.addEventListener("click", () => { confirmModal.classList.remove("open"); fetchLiveRates(); });
+  confirmFetchBtn.addEventListener("click", () => {
+    confirmModal.classList.remove("open");
+    if (confirmMode === "trend") {
+      confirmMode = "rates";
+      if (typeof forceTrendRefresh === "function") forceTrendRefresh();
+    } else {
+      fetchLiveRates();
+    }
+  });
 
   forceFetchLink.addEventListener("click", (e) => {
     e.preventDefault();
-    confirmText.textContent = t("confirmCached");
-    confirmModal.classList.add("open");
+    openConfirmForRates(t("confirmCached"));
   });
 
   async function fetchFromGoldApi(currency) {
@@ -1265,6 +1299,7 @@
 
   let trendChart = null;
   let trendRawUsdCloses = null; // [{date, usdPerOz}] cached for the day, currency-independent
+  let trendFetchedAt = null;    // epoch ms of the last successful API fetch (for the "updated HH:MM" label + throttle)
 
   function isoDaysAgo(n) {
     const d = new Date();
@@ -1287,6 +1322,8 @@
         const parsed = JSON.parse(raw);
         if (parsed && parsed.date === todayStr() && Array.isArray(parsed.series) && parsed.series.length) {
           trendRawUsdCloses = parsed.series;
+          // Older caches (pre-refresh-button) have no fetchedAt; leave it null and just omit the timestamp label.
+          trendFetchedAt = typeof parsed.fetchedAt === "number" ? parsed.fetchedAt : null;
           return trendRawUsdCloses;
         }
       }
@@ -1309,7 +1346,8 @@
 
     if (!series.length) throw new Error("Trend series empty");
     trendRawUsdCloses = series;
-    try { localStorage.setItem(TREND_CACHE_KEY, JSON.stringify({ date: todayStr(), series })); } catch (_) {}
+    trendFetchedAt = Date.now();
+    try { localStorage.setItem(TREND_CACHE_KEY, JSON.stringify({ date: todayStr(), series, fetchedAt: trendFetchedAt })); } catch (_) {}
     return series;
   }
 
@@ -1379,7 +1417,15 @@
 
     document.getElementById("trendStart").textContent = labels[0];
     document.getElementById("trendEnd").textContent = labels[labels.length - 1];
-    statusEl.textContent = t("trendNote", { unit: "\u2066" + cur + "/g\u2069" });
+    // "Spot trend … · updated HH:MM" — time is isolated (LRI…PDI) so digits don't
+    // reorder in RTL. Omitted entirely for pre-upgrade caches with no timestamp.
+    let updatedLabel = "";
+    if (trendFetchedAt) {
+      const d = new Date(trendFetchedAt);
+      const hhmm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      updatedLabel = t("trendUpdatedAt", { time: "\u2066" + hhmm + "\u2069" });
+    }
+    statusEl.textContent = t("trendNote", { unit: "\u2066" + cur + "/g\u2069" }) + updatedLabel;
 
     // --- 30-day high/low position bar ---
     // Marker position = where `last` sits between the window low and high.
@@ -1452,6 +1498,40 @@
 
   // Re-render the trend when the currency changes (follows selected currency).
   currencySelect.addEventListener("change", () => { renderTrend(); });
+
+  // ---- Manual trend refresh (bypasses today's cache) ----
+  // Quota guard: refetches within 15 minutes of the last successful fetch are
+  // refused with a status note instead of spending a CommodityPriceAPI call.
+  const TREND_REFRESH_MIN_MS = 15 * 60 * 1000;
+  const trendRefreshBtn = document.getElementById("trendRefreshBtn");
+
+  async function forceTrendRefresh() {
+    const statusEl = document.getElementById("trendStatus");
+    trendRefreshBtn.disabled = true;
+    statusEl.textContent = t("trendLoading");
+    trendRawUsdCloses = null;
+    trendFetchedAt = null;
+    try { localStorage.removeItem(TREND_CACHE_KEY); } catch (_) {}
+    try {
+      await renderTrend(); // cache is gone, so getTrendUsdCloses() fetches fresh
+    } finally {
+      trendRefreshBtn.disabled = false;
+    }
+  }
+
+  trendRefreshBtn.addEventListener("click", () => {
+    if (trendFetchedAt && (Date.now() - trendFetchedAt) < TREND_REFRESH_MIN_MS) {
+      const statusEl = document.getElementById("trendStatus");
+      const prev = statusEl.textContent;
+      statusEl.textContent = t("trendFresh");
+      setTimeout(() => { if (statusEl.textContent === t("trendFresh")) statusEl.textContent = prev; }, 4000);
+      return;
+    }
+    confirmMode = "trend";
+    confirmTitleEl.textContent = t("confirmTrendTitle");
+    confirmText.textContent = t("confirmTrend");
+    confirmModal.classList.add("open");
+  });
 
   renderStamps();
   applyLanguage();
