@@ -1296,7 +1296,8 @@
   const TREND_WINDOW_DAYS = 30;
   const GRAMS_PER_TROY_OZ = 31.1035;
   const TREND_CACHE_KEY = "gold_calc_trend_cache_v2";
-  const TREND_TODAY_REFRESH_MS = 2 * 60 * 60 * 1000; // auto-refresh today's point after 2h
+  const TREND_TODAY_REFRESH_MS = 2 * 60 * 60 * 1000;  // auto-refresh today's point after 2h
+  const TREND_TODAY_MISS_RETRY_MS = 15 * 60 * 1000;   // retry window when today isn't ingested yet
 
   let trendChart = null;
   // Split cache: `historical` = 29 days up to yesterday, rarely invalidated (once/day).
@@ -1328,8 +1329,9 @@
       if (parsed && parsed.historical && Array.isArray(parsed.historical.series) && parsed.historical.series.length) {
         trendHistorical = parsed.historical;
       }
-      if (parsed && parsed.today && typeof parsed.today.usdPerOz === "number") {
-        trendToday = parsed.today;
+      if (parsed && parsed.today && parsed.today.date &&
+          (typeof parsed.today.usdPerOz === "number" || parsed.today.usdPerOz === null)) {
+        trendToday = parsed.today; // usdPerOz null = cached "not ingested yet" miss marker
       }
     } catch (_) {}
   }
@@ -1375,23 +1377,25 @@
   // so the caller can fall back to historical-only instead of erroring the whole chart out.
   async function getTodayClose() {
     const today = todayStr();
-    const fresh = trendToday && trendToday.date === today &&
-                  (Date.now() - trendToday.fetchedAt) < TREND_TODAY_REFRESH_MS;
-    if (fresh) return trendToday.usdPerOz;
+    if (trendToday && trendToday.date === today && typeof trendToday.fetchedAt === "number") {
+      const age = Date.now() - trendToday.fetchedAt;
+      // A hit stays fresh for 2h; a miss (usdPerOz null, i.e. not ingested yet)
+      // is retried on a shorter 15-min window so renders in between are free.
+      const window_ = trendToday.usdPerOz != null ? TREND_TODAY_REFRESH_MS : TREND_TODAY_MISS_RETRY_MS;
+      if (age < window_) return trendToday.usdPerOz;
+    }
 
     try {
       const series = await fetchTrendSeries(today, today);
       const point = series.find(p => p.date === today);
-      if (point) {
-        trendToday = { date: today, usdPerOz: point.usdPerOz, fetchedAt: Date.now() };
-        writeTrendCache();
-        return trendToday.usdPerOz;
-      }
+      // Cache the outcome either way — a miss marker (null) prevents every
+      // karat/currency/language re-render from re-firing this 1-day query.
+      trendToday = { date: today, usdPerOz: point ? point.usdPerOz : null, fetchedAt: Date.now() };
+      writeTrendCache();
+      return trendToday.usdPerOz;
     } catch (_) {
-      // Network/worker failure — fall through to whatever's cached below.
+      // Network/worker failure — fall back to any same-day cached value (hit or miss).
     }
-    // Not ingested yet today, or fetch failed: keep a same-day cached value if we have
-    // one rather than discarding it, otherwise report "no today point" via null.
     return (trendToday && trendToday.date === today) ? trendToday.usdPerOz : null;
   }
 
@@ -1403,9 +1407,13 @@
     trendFetchedAt = null;
     try {
       const todayUsd = await getTodayClose();
+      // Track when we last CHECKED today's point (hit or miss) so the manual-refresh
+      // throttle and the "updated HH:MM" label stay honest even before ingestion.
+      if (trendToday && trendToday.date === todayStr() && typeof trendToday.fetchedAt === "number") {
+        trendFetchedAt = trendToday.fetchedAt;
+      }
       if (todayUsd != null) {
         series = series.concat([{ date: todayStr(), usdPerOz: todayUsd }]);
-        trendFetchedAt = trendToday.fetchedAt;
       }
     } catch (_) {
       // Today's point is best-effort; historical still renders without it.
