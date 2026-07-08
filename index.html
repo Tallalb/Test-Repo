@@ -1065,10 +1065,17 @@
   // (those stay per-transaction, never synced) and without re-fetching live rates.
   function applySyncSettings(s) {
     if (!s || typeof s !== "object") return;
-    if (s.currency && CURRENCIES.some(c => c.code === s.currency)) {
-      currencySelect.value = s.currency;
-      try { localStorage.setItem("gold_calc_currency", s.currency); } catch (_) {}
-    }
+
+    // Decide whether the synced currency differs from what's active now. We do NOT
+    // write currencySelect.value here directly: a raw assignment skips the change
+    // handler, leaving the rate field, the "Already fetched"/status line, and the
+    // fetch button showing the OLD currency's data mislabelled as the new one.
+    // Instead we apply every non-currency setting first, then dispatch a real
+    // change event so the existing cascade (cached rate → FX-derived estimate →
+    // clear + prompt) recomputes the rate, status, and button for the new currency.
+    const wantCurrency = (s.currency && CURRENCIES.some(c => c.code === s.currency)) ? s.currency : null;
+    const currencyChanged = wantCurrency && wantCurrency !== currencySelect.value;
+
     if (typeof s.markup === "boolean") {
       markupOn = s.markup;
       markupToggle.checked = markupOn;
@@ -1099,9 +1106,21 @@
       renderStamps();
       updateLabels();
     }
-    reapplyMarkup(); // re-derives rateInput from baseRates × markup for the (possibly new) karat
-    calculate();
-    if (typeof renderTrend === "function") renderTrend();
+
+    if (currencyChanged) {
+      // Route through the real handler: it persists the currency, clears the ask,
+      // runs the rate cascade, updates the status line + fetch button, and refreshes
+      // the trend. It reads karat/markup/making, which we've already set above.
+      currencySelect.value = wantCurrency;
+      currencySelect.dispatchEvent(new Event("change"));
+    } else {
+      // Same currency (or none synced): just re-derive the rate for the new karat/
+      // markup and recompute, exactly as before.
+      if (wantCurrency) { try { localStorage.setItem("gold_calc_currency", wantCurrency); } catch (_) {} }
+      reapplyMarkup(); // re-derives rateInput from baseRates × markup for the (possibly new) karat
+      calculate();
+      if (typeof renderTrend === "function") renderTrend();
+    }
   }
 
   function renderSyncRows() {
@@ -1114,10 +1133,21 @@
     }
   }
 
+  // Remember the last sync status so a language toggle can re-render THIS message
+  // in the new language, instead of flattening a transient "Saved just now" or
+  // "Sync error: …" back to the steady "Synced as"/"off" state.
+  let lastSyncStatus = { key: null, vars: undefined };
   function setSyncStatus(key, vars) {
+    lastSyncStatus = { key, vars };
     syncStatusEl.innerHTML = t(key, vars);
     const link = document.getElementById("syncChangeLink");
     if (link) link.addEventListener("click", (e) => { e.preventDefault(); changeSyncUser(); });
+  }
+  // Re-render whatever status is currently showing, in the active language.
+  function refreshSyncStatus() {
+    if (lastSyncStatus.key) setSyncStatus(lastSyncStatus.key, lastSyncStatus.vars);
+    else setSyncStatus(syncUsername ? "syncStatusSynced" : "syncStatusNoUser",
+                       syncUsername ? { user: syncUsername } : undefined);
   }
 
   function changeSyncUser() {
@@ -1163,7 +1193,8 @@
     }
   }
 
-  syncSetupBtn.addEventListener("click", async () => {
+  // Shared setup path so the click and Enter-key entry points can't drift apart.
+  async function submitSyncSetup() {
     const candidate = syncUsernameInput.value.trim();
     if (!SYNC_CODE_PATTERN.test(candidate)) {
       setSyncStatus("syncUsernameInvalid");
@@ -1173,6 +1204,11 @@
     syncUsername = candidate;
     renderSyncRows();
     await loadSyncSettings(syncUsername);
+  }
+  syncSetupBtn.addEventListener("click", submitSyncSetup);
+  // Enter in the username field submits, matching the button.
+  syncUsernameInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); submitSyncSetup(); }
   });
 
   syncSaveBtn.addEventListener("click", () => {
@@ -1207,7 +1243,7 @@
     // refresh dynamic strings that depend on current state
     renderStatus();
     syncFetchButtonState();
-    setSyncStatus(syncUsername ? "syncStatusSynced" : "syncStatusNoUser", syncUsername ? { user: syncUsername } : undefined);
+    refreshSyncStatus();
     calculate();
     if (typeof renderTrend === "function") renderTrend();
   }
@@ -1309,9 +1345,26 @@
     }
 
     const cur = currencySelect.value;
-    let fxFactor = 1;
-    try { fxFactor = await getFxFactor("USD", cur); }
-    catch (_) { fxFactor = (USD_PEGS[cur] || 1); } // fall back to peg if FX unavailable
+    let fxFactor;
+    try {
+      fxFactor = await getFxFactor("USD", cur);
+    } catch (_) {
+      // Live FX unavailable. AED/SAR/USD are hard USD pegs, so their factor is
+      // effectively constant — safe to use the hardcoded peg. EUR/NOK float, so a
+      // stale/assumed factor would mislabel USD-derived numbers as NOK/g. Rather
+      // than fake it, hide the trend and say it's unavailable.
+      if (USD_PEGS[cur]) {
+        fxFactor = USD_PEGS[cur];
+      } else {
+        statusEl.textContent = t("trendUnavailable");
+        deltaEl.textContent = "";
+        document.getElementById("trendStart").textContent = "";
+        document.getElementById("trendEnd").textContent = "";
+        rangeWrap.style.display = "none";
+        if (trendChart) { trendChart.destroy(); trendChart = null; }
+        return;
+      }
+    }
 
     const values = series.map(p => +convertTrendPoint(p.usdPerOz, fxFactor, karat).toFixed(2));
     const labels = series.map(p => p.date);
