@@ -82,11 +82,16 @@
   .trend-refresh { background: transparent; border: 1px solid #3a332a; border-radius: 6px; color: #c8a250; font-size: 13px; line-height: 1; padding: 3px 7px; cursor: pointer; font-family: inherit; }
   .trend-refresh:hover { border-color: #c8a250; }
   .trend-refresh:disabled { opacity: 0.4; cursor: default; }
+  .trend-range-toggle { display: flex; gap: 6px; margin-bottom: 10px; direction: ltr; }
+  .trend-range-btn { background: transparent; border: 1px solid #3a332a; border-radius: 6px; color: #a89e8c; font-size: 11px; font-family: 'IBM Plex Mono', monospace; padding: 3px 11px; cursor: pointer; letter-spacing: 0.04em; }
+  .trend-range-btn:hover { border-color: #6f6455; color: #c8a250; }
+  .trend-range-btn.active { border-color: #c8a250; color: #c8a250; background: rgba(200,162,80,0.08); }
+  .trend-range-btn:disabled { opacity: 0.4; cursor: default; }
   .trend-canvas-wrap { position: relative; width: 100%; height: 90px; direction: ltr; }
   .trend-dates { display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #6f6455; margin-top: 4px; direction: ltr; }
   .trend-status { font-size: 11.5px; color: #a89e8c; margin-top: 6px; }
 
-  /* --- 30-day high/low position bar --- */
+  /* --- 30-day high/low position bar (30D view only) --- */
   .range-wrap { margin-top: 12px; direction: ltr; }
   .range-track { position: relative; height: 6px; background: #2c261c; border-radius: 3px; direction: ltr; }
   .range-marker { position: absolute; top: -3px; width: 3px; height: 12px; border-radius: 2px; background: #ecd9a6; }
@@ -166,6 +171,10 @@
         <span class="trend-delta" id="trendDelta"></span>
         <button type="button" class="trend-refresh" id="trendRefreshBtn" aria-label="Refresh trend" title="Refresh trend">&#8635;</button>
       </span>
+    </div>
+    <div class="trend-range-toggle" id="trendRangeToggle">
+      <button type="button" class="trend-range-btn active" id="trendRange30Btn" data-range="30d">30D</button>
+      <button type="button" class="trend-range-btn" id="trendRange12Btn" data-range="12m">12M</button>
     </div>
     <div class="trend-canvas-wrap">
       <canvas id="trendCanvas" role="img" aria-label="30-day gold spot price trend"></canvas>
@@ -369,16 +378,16 @@
       currencySet: "Currency set to {cur}. Tap Fetch to pull today's {cur} gold rate.",
       fetchFailNet: "Network/CORS error reaching GoldAPI. It may not allow direct browser calls.",
       fetchFail: "Fetch failed: {msg}",
-      trendEyebrow: "30-DAY SPOT TREND · {k}",
-      belowHigh: "Today is <span class=\"range-amt\">{amt}</span> below the 30-day high",
-      aboveLow: "Today is <span class=\"range-amt\">{amt}</span> above the 30-day low",
-      trendLoading: "Loading 30-day trend…",
-      trendUnavailable: "30-day trend unavailable right now.",
+      trendEyebrow: "{range} SPOT TREND · {k}",
+      belowHigh: "Today is <span class=\"range-amt\">{amt}</span> below the {range} high",
+      aboveLow: "Today is <span class=\"range-amt\">{amt}</span> above the {range} low",
+      trendLoading: "Loading {range} trend…",
+      trendUnavailable: "{range} trend unavailable right now.",
       trendNote: "Spot trend (not retail fix) · {unit}",
       trendUpdatedAt: " · updated {time}",
       trendFresh: "Trend was refreshed less than 15 minutes ago — data is already current.",
-      confirmTrendTitle: "Refresh 30-day trend?",
-      confirmTrend: "This will bypass today's cache and fetch fresh 30-day data from the API. Continue?",
+      confirmTrendTitle: "Refresh {range} trend?",
+      confirmTrend: "This will bypass today's cache and fetch fresh {range} data from the API. Continue?",
       langName: "العربية",
       // settings sync
       syncUsernamePlaceholder: "Enter your username to sync",
@@ -464,16 +473,16 @@
       currencySet: "تم ضبط العملة على {cur}. اضغط «جلب» للحصول على سعر الذهب لليوم بعملة {cur}.",
       fetchFailNet: "خطأ شبكة/CORS في الوصول إلى GoldAPI. قد لا تسمح بالاتصال المباشر من المتصفح.",
       fetchFail: "فشل الجلب: {msg}",
-      trendEyebrow: "اتجاه السعر الفوري · 30 يوماً · {k}",
-      trendLoading: "جارٍ تحميل اتجاه 30 يوماً…",
-      trendUnavailable: "اتجاه 30 يوماً غير متاح حالياً.",
+      trendEyebrow: "اتجاه السعر الفوري · {range} · {k}",
+      trendLoading: "جارٍ تحميل اتجاه {range}…",
+      trendUnavailable: "اتجاه {range} غير متاح حالياً.",
       trendNote: "اتجاه السعر الفوري · {unit}",
       trendUpdatedAt: " · مُحدّث {time}",
       trendFresh: "تم تحديث الاتجاه قبل أقل من 15 دقيقة — البيانات محدّثة بالفعل.",
-      confirmTrendTitle: "تحديث اتجاه 30 يوماً؟",
-      confirmTrend: "سيتم تجاوز بيانات اليوم المحفوظة وجلب بيانات 30 يوماً الجديدة من المصدر. هل تريد المتابعة؟",
-      belowHigh: "السعر اليوم <span class=\"range-amt\">{amt}</span> أقل من أعلى سعر خلال 30 يوماً",
-      aboveLow: "السعر اليوم <span class=\"range-amt\">{amt}</span> فوق أدنى سعر خلال 30 يوماً",
+      confirmTrendTitle: "تحديث اتجاه {range}؟",
+      confirmTrend: "سيتم تجاوز بيانات اليوم المحفوظة وجلب بيانات {range} الجديدة من المصدر. هل تريد المتابعة؟",
+      belowHigh: "السعر اليوم <span class=\"range-amt\">{amt}</span> أقل من أعلى سعر خلال {range}",
+      aboveLow: "السعر اليوم <span class=\"range-amt\">{amt}</span> فوق أدنى سعر خلال {range}",
       langName: "English",
       // settings sync
       syncUsernamePlaceholder: "أدخل اسم المستخدم للمزامنة",
@@ -1288,24 +1297,33 @@
     applyLanguage();
   });
 
-  // ---- 30-day spot trend sparkline (via Cloudflare Worker → CommodityPriceAPI) ----
+  // ---- Spot trend sparkline (via Cloudflare Worker → CommodityPriceAPI) ----
   // The Worker holds the API key server-side and returns XAU (USD, per troy ounce) OHLC.
   // We take the daily close, convert oz→gram, scale by the active karat's fineness,
   // apply USD→selected-currency FX (reusing getFxFactor), and plot the close series.
+  // Two ranges are supported — "30d" (daily closes) and "12m" (monthly closes,
+  // resampled client-side from a 365-day daily fetch so the sparkline stays readable).
   const TREND_WORKER_URL = "https://startfromscratch.liveshort.workers.dev/";
-  const TREND_WINDOW_DAYS = 30;
+  const TREND_RANGE_DAYS = { "30d": 30, "12m": 365 };
   const GRAMS_PER_TROY_OZ = 31.1035;
-  const TREND_CACHE_KEY = "gold_calc_trend_cache_v2";
-  const TREND_TODAY_REFRESH_MS = 2 * 60 * 60 * 1000;  // auto-refresh today's point after 2h
-  const TREND_TODAY_MISS_RETRY_MS = 15 * 60 * 1000;   // retry window when today isn't ingested yet
+  const TREND_CACHE_KEYS = { "30d": "gold_calc_trend_cache_30d", "12m": "gold_calc_trend_cache_12m" };
 
   let trendChart = null;
-  // Split cache: `historical` = 29 days up to yesterday, rarely invalidated (once/day).
-  // `today` = just today's point, cheap to re-fetch on its own short-lived timer.
-  let trendHistorical = null;  // { throughDate: "yesterday", series: [{date, usdPerOz}] }
-  let trendToday = null;       // { date: "today", usdPerOz, fetchedAt } | null if not yet ingested
-  let trendFetchedAt = null;   // epoch ms of today's point fetch, only set when a today point exists
-  let trendCacheHydrated = false;
+  let trendRange = "30d"; // "30d" | "12m" — which button is active
+  const trendRawUsdCloses = { "30d": null, "12m": null }; // [{date, usdPerOz}] cached for the day, currency-independent, per range
+  const trendFetchedAt = { "30d": null, "12m": null };    // epoch ms of the last successful fetch per range (for "updated HH:MM" + throttle)
+
+  // Range-word substitutions for the {range} placeholder in i18n strings.
+  // "upper" feeds the all-caps eyebrow line; "lower" feeds mid-sentence copy.
+  // Arabic has no case distinction, so both variants are identical there.
+  const RANGE_WORDS = {
+    en: { "30d": { upper: "30-DAY", lower: "30-day" }, "12m": { upper: "12-MONTH", lower: "12-month" } },
+    ar: { "30d": { upper: "30 يوماً", lower: "30 يوماً" }, "12m": { upper: "12 شهراً", lower: "12 شهراً" } },
+  };
+  function rangeWord(kind) {
+    const table = RANGE_WORDS[lang] || RANGE_WORDS.en;
+    return (table[trendRange] && table[trendRange][kind]) || "";
+  }
 
   function isoDaysAgo(n) {
     const d = new Date();
@@ -1319,105 +1337,51 @@
     return k ? parseInt(k.fineness, 10) / 1000 : 1;
   }
 
-  function hydrateTrendCache() {
-    if (trendCacheHydrated) return;
-    trendCacheHydrated = true;
-    try {
-      const raw = localStorage.getItem(TREND_CACHE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.historical && Array.isArray(parsed.historical.series) && parsed.historical.series.length) {
-        trendHistorical = parsed.historical;
-      }
-      if (parsed && parsed.today && parsed.today.date &&
-          (typeof parsed.today.usdPerOz === "number" || parsed.today.usdPerOz === null)) {
-        trendToday = parsed.today; // usdPerOz null = cached "not ingested yet" miss marker
-      }
-    } catch (_) {}
+  // Collapse a daily USD/oz series down to one point per calendar month (the
+  // last available close in each month), for the 12-month view.
+  function aggregateMonthly(series) {
+    const byMonth = new Map(); // "YYYY-MM" -> latest {date, usdPerOz} seen for that month
+    for (const p of series) byMonth.set(p.date.slice(0, 7), p);
+    return Array.from(byMonth.keys()).sort().map(m => byMonth.get(m));
   }
 
-  function writeTrendCache() {
+  // Read the raw USD/oz daily close series for a range: from today's cache if
+  // present, else fetch the Worker once (365 days for 12m, resampled by the caller).
+  async function getTrendUsdCloses(range) {
+    if (trendRawUsdCloses[range]) return trendRawUsdCloses[range];
+    const cacheKey = TREND_CACHE_KEYS[range];
     try {
-      localStorage.setItem(TREND_CACHE_KEY, JSON.stringify({ historical: trendHistorical, today: trendToday }));
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.date === todayStr() && Array.isArray(parsed.series) && parsed.series.length) {
+          trendRawUsdCloses[range] = parsed.series;
+          // Older caches (pre-refresh-button) have no fetchedAt; leave it null and just omit the timestamp label.
+          trendFetchedAt[range] = typeof parsed.fetchedAt === "number" ? parsed.fetchedAt : null;
+          return trendRawUsdCloses[range];
+        }
+      }
     } catch (_) {}
-  }
 
-  // Shared low-level fetch: pulls XAU.close for each date in [startDate, endDate] from the Worker.
-  async function fetchTrendSeries(startDate, endDate) {
+    const startDate = isoDaysAgo(TREND_RANGE_DAYS[range] - 1);
+    const endDate = todayStr();
     const url = `${TREND_WORKER_URL}?startDate=${startDate}&endDate=${endDate}`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`Trend worker error ${resp.status}`);
     const data = await resp.json();
     if (!data || !data.success || !data.rates) throw new Error("Trend response malformed");
-    return Object.keys(data.rates).sort().map(date => {
+
+    // rates is a date-keyed map; sort ascending and pull XAU.close for each day.
+    const series = Object.keys(data.rates).sort().map(date => {
       const x = data.rates[date] && data.rates[date].XAU;
       const close = x && typeof x.close === "number" ? x.close : null;
       return { date, usdPerOz: close };
     }).filter(p => p.usdPerOz != null);
-  }
 
-  // 29-day historical window (yesterday back to isoDaysAgo(TREND_WINDOW_DAYS-1)).
-  // Re-fetched only when the cached window no longer ends on yesterday — naturally
-  // rolls once/day whether the app was open the whole time or reopened after a gap.
-  async function getHistoricalCloses() {
-    const yesterday = isoDaysAgo(1);
-    if (trendHistorical && trendHistorical.throughDate === yesterday && trendHistorical.series.length) {
-      return trendHistorical.series;
-    }
-    const startDate = isoDaysAgo(TREND_WINDOW_DAYS - 1);
-    const series = await fetchTrendSeries(startDate, yesterday);
-    if (!series.length) throw new Error("Historical trend series empty");
-    trendHistorical = { throughDate: yesterday, series };
-    writeTrendCache();
-    return series;
-  }
-
-  // Today's point — a cheap 1-day query, auto-refreshed after TREND_TODAY_REFRESH_MS.
-  // Returns null (never throws) if today's rate isn't ingested yet or the fetch fails,
-  // so the caller can fall back to historical-only instead of erroring the whole chart out.
-  async function getTodayClose() {
-    const today = todayStr();
-    if (trendToday && trendToday.date === today && typeof trendToday.fetchedAt === "number") {
-      const age = Date.now() - trendToday.fetchedAt;
-      // A hit stays fresh for 2h; a miss (usdPerOz null, i.e. not ingested yet)
-      // is retried on a shorter 15-min window so renders in between are free.
-      const window_ = trendToday.usdPerOz != null ? TREND_TODAY_REFRESH_MS : TREND_TODAY_MISS_RETRY_MS;
-      if (age < window_) return trendToday.usdPerOz;
-    }
-
-    try {
-      const series = await fetchTrendSeries(today, today);
-      const point = series.find(p => p.date === today);
-      // Cache the outcome either way — a miss marker (null) prevents every
-      // karat/currency/language re-render from re-firing this 1-day query.
-      trendToday = { date: today, usdPerOz: point ? point.usdPerOz : null, fetchedAt: Date.now() };
-      writeTrendCache();
-      return trendToday.usdPerOz;
-    } catch (_) {
-      // Network/worker failure — fall back to any same-day cached value (hit or miss).
-    }
-    return (trendToday && trendToday.date === today) ? trendToday.usdPerOz : null;
-  }
-
-  // Merge historical (29d) + today's point (if available) into one ascending series.
-  async function getTrendSeries() {
-    hydrateTrendCache();
-    const historical = await getHistoricalCloses(); // throws -> caller shows "unavailable"
-    let series = historical.slice();
-    trendFetchedAt = null;
-    try {
-      const todayUsd = await getTodayClose();
-      // Track when we last CHECKED today's point (hit or miss) so the manual-refresh
-      // throttle and the "updated HH:MM" label stay honest even before ingestion.
-      if (trendToday && trendToday.date === todayStr() && typeof trendToday.fetchedAt === "number") {
-        trendFetchedAt = trendToday.fetchedAt;
-      }
-      if (todayUsd != null) {
-        series = series.concat([{ date: todayStr(), usdPerOz: todayUsd }]);
-      }
-    } catch (_) {
-      // Today's point is best-effort; historical still renders without it.
-    }
+    if (!series.length) throw new Error("Trend series empty");
+    trendRawUsdCloses[range] = series;
+    trendFetchedAt[range] = Date.now();
+    try { localStorage.setItem(cacheKey, JSON.stringify({ date: todayStr(), series, fetchedAt: trendFetchedAt[range] })); } catch (_) {}
     return series;
   }
 
@@ -1430,27 +1394,37 @@
     const statusEl = document.getElementById("trendStatus");
     const deltaEl = document.getElementById("trendDelta");
     const eyebrowEl = document.getElementById("trendEyebrow");
+    const canvasEl = document.getElementById("trendCanvas");
     const kLabel = (KARATS.find(x => x.key === karat) || {}).label || "24K";
     // Isolate the Latin karat label (e.g. "18K") so it doesn't reorder against
-    // the Arabic text or the "30" in RTL mode. U+2066 LRI … U+2069 PDI.
+    // the Arabic text or the range word in RTL mode. U+2066 LRI … U+2069 PDI.
     const kIsolated = "\u2066" + kLabel + "\u2069";
-    eyebrowEl.textContent = t("trendEyebrow", { k: kIsolated });
+    eyebrowEl.textContent = t("trendEyebrow", { range: rangeWord("upper"), k: kIsolated });
+    canvasEl.setAttribute("aria-label", `${rangeWord("lower")} gold spot price trend`);
 
     const rangeWrap = document.getElementById("rangeWrap");
 
-    let series;
-    try {
-      series = await getTrendSeries();
-    } catch (err) {
-      console.error("Trend fetch failed:", err);
-      statusEl.textContent = t("trendUnavailable");
+    function showUnavailable() {
+      statusEl.textContent = t("trendUnavailable", { range: rangeWord("lower") });
       deltaEl.textContent = "";
       document.getElementById("trendStart").textContent = "";
       document.getElementById("trendEnd").textContent = "";
       rangeWrap.style.display = "none";
       if (trendChart) { trendChart.destroy(); trendChart = null; }
+    }
+
+    let rawSeries;
+    try {
+      rawSeries = await getTrendUsdCloses(trendRange);
+    } catch (err) {
+      console.error("Trend fetch failed:", err);
+      showUnavailable();
       return;
     }
+
+    // 30D plots daily closes as-is; 12M is resampled to one point per month
+    // so the sparkline stays readable instead of packing in ~365 raw points.
+    const series = trendRange === "12m" ? aggregateMonthly(rawSeries) : rawSeries;
 
     const cur = currencySelect.value;
     let fxFactor;
@@ -1464,12 +1438,7 @@
       if (USD_PEGS[cur]) {
         fxFactor = USD_PEGS[cur];
       } else {
-        statusEl.textContent = t("trendUnavailable");
-        deltaEl.textContent = "";
-        document.getElementById("trendStart").textContent = "";
-        document.getElementById("trendEnd").textContent = "";
-        rangeWrap.style.display = "none";
-        if (trendChart) { trendChart.destroy(); trendChart = null; }
+        showUnavailable();
         return;
       }
     }
@@ -1490,41 +1459,50 @@
     // "Spot trend … · updated HH:MM" — time is isolated (LRI…PDI) so digits don't
     // reorder in RTL. Omitted entirely for pre-upgrade caches with no timestamp.
     let updatedLabel = "";
-    if (trendFetchedAt) {
-      const d = new Date(trendFetchedAt);
+    if (trendFetchedAt[trendRange]) {
+      const d = new Date(trendFetchedAt[trendRange]);
       const hhmm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
       updatedLabel = t("trendUpdatedAt", { time: "\u2066" + hhmm + "\u2069" });
     }
     statusEl.textContent = t("trendNote", { unit: "\u2066" + cur + "/g\u2069" }) + updatedLabel;
 
-    // --- 30-day high/low position bar ---
-    // Marker position = where `last` sits between the window low and high.
-    // Readout is framed against the HIGH (how far below the 30-day peak today is),
-    // which is the useful read when deciding whether to buy. If the window is flat
-    // (hi === lo), fall back to the above-low framing so we don't show a zero gap.
-    const hi = Math.max(...values);
-    const lo = Math.min(...values);
-    const rangeMarker = document.getElementById("rangeMarker");
-    const rangeReadout = document.getElementById("rangeReadout");
-    document.getElementById("rangeLow").textContent = `low ${lo.toFixed(2)}`;
-    document.getElementById("rangeHigh").textContent = `high ${hi.toFixed(2)}`;
-    const posPct = hi > lo ? ((last - lo) / (hi - lo)) * 100 : 50;
-    rangeMarker.style.left = Math.min(100, Math.max(0, posPct)) + "%";
+    // --- high/low position bar (30-day only, by design) ---
+    // This bar is scoped to the 30-day window on purpose: it's a short-term
+    // "where does today sit" read, and doesn't map cleanly onto 12 monthly
+    // closes. For 12M we hide it entirely rather than let it re-derive from
+    // monthly data — the 12M chart stays a plain line, matching the 30D chart's
+    // simplicity without inheriting its short-term negotiation framing.
+    if (trendRange === "30d") {
+      // Marker position = where `last` sits between the window low and high.
+      // Readout is framed against the HIGH (how far below the window's peak today
+      // is), which is the useful read when deciding whether to buy. If the window
+      // is flat (hi === lo), fall back to the above-low framing so we don't show a zero gap.
+      const hi = Math.max(...values);
+      const lo = Math.min(...values);
+      const rangeMarker = document.getElementById("rangeMarker");
+      const rangeReadout = document.getElementById("rangeReadout");
+      document.getElementById("rangeLow").textContent = `low ${lo.toFixed(2)}`;
+      document.getElementById("rangeHigh").textContent = `high ${hi.toFixed(2)}`;
+      const posPct = hi > lo ? ((last - lo) / (hi - lo)) * 100 : 50;
+      rangeMarker.style.left = Math.min(100, Math.max(0, posPct)) + "%";
 
-    if (hi > lo) {
-      const gap = hi - last;                 // amount below the high
-      const gapPct = (gap / hi) * 100;
-      const amt = `${cur} ${gap.toFixed(2)}/g (${gapPct.toFixed(1)}%)`;
-      rangeReadout.innerHTML = t("belowHigh", { amt });
-      rangeReadout.querySelector(".range-amt").style.color = "#c05a4a";
+      if (hi > lo) {
+        const gap = hi - last;                 // amount below the high
+        const gapPct = (gap / hi) * 100;
+        const amt = `${cur} ${gap.toFixed(2)}/g (${gapPct.toFixed(1)}%)`;
+        rangeReadout.innerHTML = t("belowHigh", { amt, range: rangeWord("lower") });
+        rangeReadout.querySelector(".range-amt").style.color = "#c05a4a";
+      } else {
+        const amt = `${cur} 0.00/g (0.0%)`;
+        rangeReadout.innerHTML = t("aboveLow", { amt, range: rangeWord("lower") });
+        rangeReadout.querySelector(".range-amt").style.color = "#8ea87a";
+      }
+      rangeWrap.style.display = "block";
     } else {
-      const amt = `${cur} 0.00/g (0.0%)`;
-      rangeReadout.innerHTML = t("aboveLow", { amt });
-      rangeReadout.querySelector(".range-amt").style.color = "#8ea87a";
+      rangeWrap.style.display = "none";
     }
-    rangeWrap.style.display = "block";
 
-    const ctx = document.getElementById("trendCanvas").getContext("2d");
+    const ctx = canvasEl.getContext("2d");
     if (trendChart) trendChart.destroy();
     trendChart = new Chart(ctx, {
       type: "line",
@@ -1569,31 +1547,44 @@
   // Re-render the trend when the currency changes (follows selected currency).
   currencySelect.addEventListener("change", () => { renderTrend(); });
 
-  // ---- Manual trend refresh (bypasses today's cache) ----
-  // Quota guard: refetches within 15 minutes of the last successful fetch are
-  // refused with a status note instead of spending a CommodityPriceAPI call.
+  // ---- 30D / 12M range toggle ----
+  const trendRange30Btn = document.getElementById("trendRange30Btn");
+  const trendRange12Btn = document.getElementById("trendRange12Btn");
+  function setTrendRange(range) {
+    if (range === trendRange) return;
+    trendRange = range;
+    trendRange30Btn.classList.toggle("active", range === "30d");
+    trendRange12Btn.classList.toggle("active", range === "12m");
+    const statusEl = document.getElementById("trendStatus");
+    statusEl.textContent = t("trendLoading", { range: rangeWord("lower") });
+    renderTrend();
+  }
+  trendRange30Btn.addEventListener("click", () => setTrendRange("30d"));
+  trendRange12Btn.addEventListener("click", () => setTrendRange("12m"));
+
+  // ---- Manual trend refresh (bypasses today's cache, for the active range only) ----
+  // Quota guard: refetches within 15 minutes of the last successful fetch (for
+  // that range) are refused with a status note instead of spending an API call.
   const TREND_REFRESH_MIN_MS = 15 * 60 * 1000;
   const trendRefreshBtn = document.getElementById("trendRefreshBtn");
 
   async function forceTrendRefresh() {
     const statusEl = document.getElementById("trendStatus");
     trendRefreshBtn.disabled = true;
-    statusEl.textContent = t("trendLoading");
-    // Bypass BOTH caches — historical and today's point — so a manual refresh
-    // always reflects a full fresh pull, not just a re-check of today's point.
-    trendHistorical = null;
-    trendToday = null;
-    trendFetchedAt = null;
-    try { localStorage.removeItem(TREND_CACHE_KEY); } catch (_) {}
+    statusEl.textContent = t("trendLoading", { range: rangeWord("lower") });
+    trendRawUsdCloses[trendRange] = null;
+    trendFetchedAt[trendRange] = null;
+    try { localStorage.removeItem(TREND_CACHE_KEYS[trendRange]); } catch (_) {}
     try {
-      await renderTrend(); // caches are gone, so getTrendSeries() fetches both fresh
+      await renderTrend(); // cache is gone, so getTrendUsdCloses() fetches fresh
     } finally {
       trendRefreshBtn.disabled = false;
     }
   }
 
   trendRefreshBtn.addEventListener("click", () => {
-    if (trendFetchedAt && (Date.now() - trendFetchedAt) < TREND_REFRESH_MIN_MS) {
+    const lastFetch = trendFetchedAt[trendRange];
+    if (lastFetch && (Date.now() - lastFetch) < TREND_REFRESH_MIN_MS) {
       const statusEl = document.getElementById("trendStatus");
       const prev = statusEl.textContent;
       statusEl.textContent = t("trendFresh");
@@ -1601,8 +1592,8 @@
       return;
     }
     confirmMode = "trend";
-    confirmTitleEl.textContent = t("confirmTrendTitle");
-    confirmText.textContent = t("confirmTrend");
+    confirmTitleEl.textContent = t("confirmTrendTitle", { range: rangeWord("lower") });
+    confirmText.textContent = t("confirmTrend", { range: rangeWord("lower") });
     confirmModal.classList.add("open");
   });
 
